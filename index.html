@@ -552,6 +552,12 @@ function aiSay(type, data = {}) {
             'Включаю трек — скажи потом, как впечатления.',
             'Играю то, что получилось. Интересно, что скажешь.'
         ],
+        duringPlay: [
+            'Слышишь, как тут всё перекликается?',
+            'Эта часть мне особенно нравится.',
+            'Послушай повнимательнее этот момент.',
+            'Заметил, как меняется громкость к концу фразы?'
+        ],
         playEnd: [
             'Вот и всё. Ну как, понравилось звучание?',
             'Доиграл. Что думаешь — оставляем так или что-то меняем?',
@@ -906,7 +912,7 @@ const moodProfiles = {
 /* ======================================================
    CANVAS / PARTICLES
 ====================================================== */
-let canvas, ctx2d, particles = [];
+let canvas, ctx2d, particles = [], particleAnimRunning = false;
 
 function initCanvas() {
     canvas = document.getElementById('particleCanvas');
@@ -939,10 +945,24 @@ function triggerAnimation(noteName, color) {
             size: 1.8 + Math.random() * 2.8
         });
     }
-    if (particles.length > 0) animateParticles();
+    /* БАГ-ФИКС: раньше тут запускался animateParticles() при каждом
+       вызове triggerAnimation, и если предыдущий анимационный цикл
+       ещё не закончился (а на длинной мелодии с частыми нотами он
+       почти никогда не успевает), стартовал ВТОРОЙ независимый
+       requestAnimationFrame-цикл поверх первого. На длинной мелодии
+       с сотнями нот это плодило десятки параллельных циклов
+       одновременно — каждый чистил и перерисовывал канвас на каждый
+       кадр и независимо "состаривал" одни и те же частицы, что
+       заметно грузило главный поток браузера и могло провоцировать
+       просадки/заикания звука. Флаг ниже гарантирует, что активен
+       только один цикл анимации, сколько бы нот не сыграло подряд. */
+    if (!particleAnimRunning) {
+        particleAnimRunning = true;
+        animateParticles();
+    }
 }
 function animateParticles() {
-    if (!ctx2d || !canvas) return;
+    if (!ctx2d || !canvas) { particleAnimRunning = false; return; }
     ctx2d.clearRect(0, 0, canvas.width, canvas.height);
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
@@ -955,7 +975,11 @@ function animateParticles() {
         ctx2d.fill();
     }
     ctx2d.globalAlpha = 1;
-    if (particles.length > 0) requestAnimationFrame(animateParticles);
+    if (particles.length > 0) {
+        requestAnimationFrame(animateParticles);
+    } else {
+        particleAnimRunning = false;
+    }
 }
 
 /* ======================================================
@@ -968,20 +992,52 @@ function animateParticles() {
    друг на друга и клиппировались.
 ====================================================== */
 function buildBus(ctx) {
-    const compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.value = -16;
-    compressor.knee.value = 22;
-    compressor.ratio.value = 4;
-    compressor.attack.value = 0.003;
-    compressor.release.value = 0.22;
+    /* Ступень 1: мягкий компрессор-выравниватель — заранее усредняет
+       динамику, чтобы лимитеру ниже не приходилось "вырезать" слишком
+       резко. */
+    const comp1 = ctx.createDynamicsCompressor();
+    comp1.threshold.value = -24;
+    comp1.knee.value = 18;
+    comp1.ratio.value = 6;
+    comp1.attack.value = 0.002;
+    comp1.release.value = 0.18;
+
+    /* Ступень 2: лимитер безопасности — почти мгновенная атака и высокий
+       ratio. Сколько бы нот ни сыграло одновременно, выше этого порога
+       сигнал просто не поднимется — это убирает "поломанный" треск при
+       плотной полифонии. */
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.08;
+
+    /* Ступень 3: мягкий клиппер (waveshaper) — последняя страховка.
+       Если пик всё же проскочит лимитер, он аккуратно "подрезается"
+       по кривой tanh, а не обрезается жёстко, как при цифровом
+       клиппинге. */
+    const shaper = ctx.createWaveShaper();
+    const curveLen = 1024;
+    const curve = new Float32Array(curveLen);
+    for (let i = 0; i < curveLen; i++) {
+        const x = (i / (curveLen - 1)) * 2 - 1;
+        curve[i] = Math.tanh(x * 1.15) / Math.tanh(1.15);
+    }
+    shaper.curve = curve;
+    shaper.oversample = '4x';
+
     const out = ctx.createGain();
-    out.gain.value = 1;
-    compressor.connect(out);
+    out.gain.value = 0.92;
+
+    comp1.connect(limiter);
+    limiter.connect(shaper);
+    shaper.connect(out);
     out.connect(ctx.destination);
 
     const dry = ctx.createGain();
     dry.gain.value = 1;
-    dry.connect(compressor);
+    dry.connect(comp1);
 
     const echo = {};
     [['short', 0.16, 0.20], ['medium', 0.34, 0.38], ['space', 0.62, 0.50]].forEach(([name, t, fb]) => {
@@ -993,7 +1049,7 @@ function buildBus(ctx) {
         delay.connect(feedback);
         feedback.connect(delay);
         delay.connect(wet);
-        wet.connect(compressor);
+        wet.connect(comp1);
         echo[name] = input;
     });
 
@@ -1019,11 +1075,16 @@ function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
     if (inst === 'bell') {
         const partials = [1, 2.756, 4.81];
         const amps     = [1, 0.45, 0.22];
+        /* БАГ-ФИКС: пик считаем от реальной суммы гармоник, а не
+           магической константой — так даже одна нота не превышает
+           безопасный уровень громкости. */
+        const harmonicSum = amps.reduce((s, a) => s + a, 0);
+        const peakTarget = vol * 0.34 / harmonicSum;
         const tail = Math.max(0.8, durSec * 1.4);
         const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 3200;
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.0001, startAt);
-        g.gain.linearRampToValueAtTime(vol * 0.30, startAt + 0.006);
+        g.gain.linearRampToValueAtTime(peakTarget, startAt + 0.006);
         g.gain.exponentialRampToValueAtTime(0.0001, startAt + tail);
         partials.forEach((p, i) => {
             const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq * p;
@@ -1041,7 +1102,7 @@ function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
         const filt = ctx.createBiquadFilter(); filt.type = 'bandpass';
         filt.frequency.value = Math.min(3400, freq * 3.2); filt.Q.value = 1.7;
         const g = ctx.createGain();
-        const peak = vol * 0.22;
+        const peak = vol * 0.17;
         g.gain.setValueAtTime(0.0001, startAt);
         g.gain.linearRampToValueAtTime(peak, startAt + 0.025);
         g.gain.setValueAtTime(peak, startAt + sustain * 0.65);
@@ -1060,7 +1121,7 @@ function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
         filt.frequency.linearRampToValueAtTime(1050, startAt + Math.min(0.3, sustain * 0.3));
         filt.frequency.linearRampToValueAtTime(480, startAt + sustain);
         const g = ctx.createGain();
-        const peak = vol * 0.34;
+        const peak = vol * 0.17;
         g.gain.setValueAtTime(0.0001, startAt);
         g.gain.linearRampToValueAtTime(peak, startAt + sustain * 0.2);
         g.gain.linearRampToValueAtTime(peak * 0.85, startAt + sustain * 0.75);
@@ -1079,9 +1140,18 @@ function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
         const amps       = [1, 0.62, 0.38, 0.22, 0.14, 0.09, 0.05, 0.03];
         const decayMul   = [1.0, 0.80, 0.62, 0.50, 0.40, 0.32, 0.26, 0.20];
         const sustain = Math.max(0.6, durSec * 1.6) + (freq < 200 ? 1.2 : 0.3);
-        const peak = vol * 0.46;
         const noteGain = ctx.createGain(); noteGain.gain.value = 1;
         const detunes = [1, 1.0017]; // юнисон-струны, чуть расстроенные друг от друга
+
+        /* БАГ-ФИКС: у этого инструмента 16 осцилляторов на одну ноту
+           (8 гармоник × 2 струны). Со старой константой (vol*0.46) их
+           суммарный пик превышал 1.0 уже на ОДНОЙ ноте — отсюда риск
+           искажений независимо от полифонии. Пик теперь считается от
+           реальной суммы вкладов всех осцилляторов, а не магической
+           константы. */
+        const detuneWeightSum = detunes.reduce((s, _, di) => s + (di === 0 ? 1.0 : 0.85), 0) / detunes.length;
+        const harmonicSum = amps.reduce((s, a) => s + a, 0) * detuneWeightSum;
+        const peak = vol * 0.34 / harmonicSum;
 
         harmonics.forEach((h, i) => {
             const inharmonicFreq = freq * h * Math.sqrt(1 + B * h * h);
@@ -1130,7 +1200,7 @@ function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
         osc.frequency.setValueAtTime(pitchBase * 3.2, startAt);
         osc.frequency.exponentialRampToValueAtTime(pitchBase * 0.55, startAt + punchDur * 0.85);
         const oGain = ctx.createGain();
-        const peak = vol * 0.9;
+        const peak = vol * 0.5;
         oGain.gain.setValueAtTime(0.0001, startAt);
         oGain.gain.linearRampToValueAtTime(peak, startAt + 0.003);
         oGain.gain.exponentialRampToValueAtTime(0.0001, startAt + punchDur);
@@ -1146,7 +1216,7 @@ function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
         for (let i = 0; i < cLen; i++) cData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / cLen, 1.5);
         const click = ctx.createBufferSource(); click.buffer = cBuf;
         const clickFilt = ctx.createBiquadFilter(); clickFilt.type = 'highpass'; clickFilt.frequency.value = 1800;
-        const clickGain = ctx.createGain(); clickGain.gain.value = vol * 0.35;
+        const clickGain = ctx.createGain(); clickGain.gain.value = vol * 0.18;
         click.connect(clickFilt); clickFilt.connect(clickGain); clickGain.connect(output);
         click.start(startAt);
         sources.push(click);
@@ -1159,7 +1229,7 @@ function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
         for (let i = 0; i < bLen; i++) bData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bLen, 3);
         const bodyNoise = ctx.createBufferSource(); bodyNoise.buffer = bBuf;
         const bodyFilt = ctx.createBiquadFilter(); bodyFilt.type = 'lowpass'; bodyFilt.frequency.value = 220;
-        const bodyGain = ctx.createGain(); bodyGain.gain.value = vol * 0.5;
+        const bodyGain = ctx.createGain(); bodyGain.gain.value = vol * 0.26;
         bodyNoise.connect(bodyFilt); bodyFilt.connect(bodyGain); bodyGain.connect(output);
         bodyNoise.start(startAt);
         sources.push(bodyNoise);
@@ -1169,7 +1239,10 @@ function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
         const amps      = [1, 0.55, 0.30, 0.17, 0.10, 0.05];
         const decayMul  = [1.0, 0.62, 0.45, 0.32, 0.24, 0.16];
         const sustain = Math.max(0.35, durSec * 1.05);
-        const peak = vol * 0.5;
+        /* БАГ-ФИКС: то же самое — пик от реальной суммы гармоник, а не
+           магической константы, иначе одна нота уже превышала 1.0. */
+        const harmonicSum = amps.reduce((s, a) => s + a, 0);
+        const peak = vol * 0.34 / harmonicSum;
         const noteGain = ctx.createGain(); noteGain.gain.value = 1;
         harmonics.forEach((h, i) => {
             const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq * h;
@@ -1274,18 +1347,67 @@ function playMelody(mel) {
     const ctx = getAudioCtx();
     if (ctx.state === 'suspended') ctx.resume();
     liveBus.masterVolume = currentVolume;
-    const startAt = ctx.currentTime + 0.15;
+
+    /* БАГ-ФИКС: раньше здесь все ноты планировались ОДНИМ синхронным
+       проходом — для большой мелодии (особенно если собрано несколько
+       ИИ-генераций подряд) создание сотен/тысяч аудио-узлов могло
+       занять заметное время. Пока шёл этот проход, реальное время
+       (ctx.currentTime) продолжало идти вперёд — и к моменту, когда
+       очередь доходила до очередной ноты, её "момент старта" мог уже
+       оказаться в прошлом. У осциллятора это не ошибка (он просто
+       стартует "немедленно"), но его огибающая громкости была
+       рассчитана на момент, который уже прошёл, — то есть к моменту
+       реального звучания она уже успевала затухнуть до нуля. Звук
+       пропадал, хотя визуальная анимация (которая планируется через
+       обычный setTimeout, а не через аудио-движок) всё равно срабатывала
+       по расписанию — отсюда и "вижу, что нота нажимается, а звука нет".
+
+       Решение — планировать ноты не все сразу, а порциями "точно в
+       срок": на каждом тике создаются только узлы тех нот, что должны
+       прозвучать в ближайшие доли секунды. Тогда объём работы за один
+       тик не зависит от общего размера мелодии. */
+    const queue = mel.slice().sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+    const startAt = ctx.currentTime + 0.25;
     let totalEnd = 0;
-    mel.forEach(n => {
-        const t = startAt + n.startTimeOffsetSeconds;
-        const nodes = scheduleNoteOnBus(ctx, liveBus, n, t);
-        activeSources.push(...nodes);
-        const delayMs = Math.max(0, (t - ctx.currentTime)) * 1000;
-        const id = setTimeout(() => triggerAnimation(n.note, n.moodColor || moodProfiles[currentStyle].color), delayMs);
-        scheduledTimeouts.push(id);
-        totalEnd = Math.max(totalEnd, n.startTimeOffsetSeconds + n.durationSeconds);
-    });
+    queue.forEach(n => { totalEnd = Math.max(totalEnd, n.startTimeOffsetSeconds + n.durationSeconds); });
+
+    const LOOKAHEAD_SEC = 0.4;  // насколько "вперёд" заранее создаём узлы
+    const TICK_MS        = 100; // как часто проверяем, что пора добавить ещё
+    let qi = 0;
+
+    function schedulerTick() {
+        const horizon = (ctx.currentTime - startAt) + LOOKAHEAD_SEC;
+        while (qi < queue.length && queue[qi].startTimeOffsetSeconds <= horizon) {
+            const n = queue[qi++];
+            const t = Math.max(ctx.currentTime + 0.004, startAt + n.startTimeOffsetSeconds);
+            const nodes = scheduleNoteOnBus(ctx, liveBus, n, t);
+            activeSources.push(...nodes);
+            const delayMs = Math.max(0, (t - ctx.currentTime)) * 1000;
+            const aId = setTimeout(() => triggerAnimation(n.note, n.moodColor || moodProfiles[currentStyle].color), delayMs);
+            scheduledTimeouts.push(aId);
+        }
+        if (qi < queue.length) {
+            const tId = setTimeout(schedulerTick, TICK_MS);
+            scheduledTimeouts.push(tId);
+        }
+    }
+    schedulerTick();
+
     aiSay('playStart', { opts: { silent: true } });
+
+    /* ИИ не молчит всё время трека — пока он играет, периодически
+       вставляет короткий комментарий, как живой слушатель рядом. */
+    if (totalEnd > 6) {
+        const commentCount = totalEnd > 20 ? 3 : (totalEnd > 10 ? 2 : 1);
+        for (let i = 1; i <= commentCount; i++) {
+            const frac = (i / (commentCount + 1)) + (Math.random() * 0.08 - 0.04);
+            const cId = setTimeout(() => {
+                aiSay('duringPlay', { opts: { silent: true } });
+            }, totalEnd * frac * 1000);
+            scheduledTimeouts.push(cId);
+        }
+    }
+
     const endId = setTimeout(() => {
         aiSay('playEnd');
     }, (totalEnd + 0.4) * 1000);
@@ -1591,11 +1713,16 @@ function createKeyboard() {
         if (isRecording) {
             const bpm  = parseInt(document.getElementById('tempoSlider').value);
             const beat = 60 / bpm;
+            /* БАГ-ФИКС: ищем максимальное время окончания среди ВСЕХ
+               нот, а не у последнего элемента массива — после
+               генерации ИИ ноты разных слоёв могут иметь разную
+               длительность, и "последняя по порядку" не всегда
+               заканчивается последней по факту. */
             let last = 0;
-            if (melody.length > 0) {
-                const ln = melody[melody.length - 1];
-                last = ln.startTimeOffsetSeconds + ln.durationSeconds;
-            }
+            melody.forEach(n => {
+                const end = n.startTimeOffsetSeconds + n.durationSeconds;
+                if (end > last) last = end;
+            });
             melody.push({
                 note: k.note, duration: currentDuration,
                 durationSeconds: currentDuration * beat,
