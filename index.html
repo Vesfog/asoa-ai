@@ -1,0 +1,2303 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Asoa AI</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+        :root {
+            --bg: #f6f3ef;
+            --card: #ffffff;
+            --accent: #14b8a6;
+            --text: #1a1f2e;
+            --text-light: #6b7280;
+            --border: #e5e7eb;
+            --key-white-bg: #ffffff;
+            --key-white-border: #cbd5e1;
+            --key-white-text: #334155;
+            --key-black-bg: #1e293b;
+            --transition-speed: 0.35s;
+        }
+        body.dark {
+            --bg: #0d0d10;
+            --card: #16161a;
+            --accent: #14b8a6;
+            --text: #f0f4ff;
+            --text-light: #8892a4;
+            --border: #262630;
+            --key-white-bg: #3a3a44;
+            --key-white-border: #252530;
+            --key-white-text: #f0f0f5;
+            --key-black-bg: #080810;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: clamp(12px, 3vw, 24px);
+            min-height: 100vh;
+            line-height: 1.5;
+            transition: background var(--transition-speed), color var(--transition-speed);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container { max-width: 1240px; margin: 0 auto; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(22px, 4vw, 32px);
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+
+        .theme-btn {
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 8px 18px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .theme-btn:hover { border-color: var(--accent); }
+
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 14px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: clamp(14px, 2.5vw, 20px);
+            transition: background var(--transition-speed), border-color var(--transition-speed);
+        }
+
+        .card.keyboard-card {
+            grid-column: span 12;
+            position: relative;
+            overflow: hidden;
+            padding-top: 22px;
+        }
+        .card.panel-4  { grid-column: span 4; }
+        .card.panel-12 { grid-column: span 12; }
+
+        @media (max-width: 900px)  { .card.panel-4 { grid-column: span 6; } }
+        @media (max-width: 580px)  { .card.panel-4 { grid-column: span 12; } }
+
+        .section-title {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-light);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* ====== KEYBOARD ====== */
+        .keyboard-wrapper {
+            position: relative;
+            width: 100%;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            padding-bottom: 6px;
+            z-index: 2;
+        }
+        .keyboard {
+            display: flex;
+            position: relative;
+            min-width: max-content;
+            height: 175px;
+            margin: 0 auto;
+        }
+        .key {
+            width: 46px; height: 160px;
+            background: var(--key-white-bg);
+            border: 1px solid var(--key-white-border);
+            border-radius: 0 0 6px 6px;
+            position: relative;
+            display: flex; align-items: flex-end; justify-content: center;
+            padding-bottom: 8px;
+            font-size: 10px; font-weight: 600;
+            color: var(--key-white-text);
+            cursor: pointer; z-index: 2;
+            user-select: none;
+            touch-action: none;
+            transition: background 0.1s, transform 0.1s;
+        }
+        .key.black {
+            width: 28px; height: 105px;
+            background: var(--key-black-bg);
+            border: 1px solid #000; color: #fff;
+            margin-left: -14px; margin-right: -14px;
+            z-index: 3; border-radius: 0 0 4px 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+        }
+        .key:active, .key.playing {
+            transform: translateY(3px);
+            background: var(--accent) !important;
+            color: #fff !important;
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 18px rgba(20,184,166,0.5);
+        }
+
+        /* ====== BUTTONS ====== */
+        .button-group { display: flex; flex-wrap: wrap; gap: 6px; }
+        .card.panel-4 .button-group { display: grid; grid-template-columns: 1fr 1fr; }
+
+        button {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 9px 13px;
+            font-size: 12px; font-weight: 500;
+            cursor: pointer; border-radius: 10px;
+            transition: all 0.18s;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 100%;
+        }
+        button:hover { border-color: var(--text-light); background: rgba(20,184,166,0.04); }
+        button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .active {
+            background: var(--accent) !important;
+            color: #fff !important;
+            border-color: var(--accent) !important;
+            font-weight: 600;
+            box-shadow: 0 2px 10px rgba(20,184,166,0.3);
+        }
+        .btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+        .btn-accent:hover { opacity: 0.88; }
+        .btn-danger { background: #ef4444; color: #fff; border-color: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
+        .recording { background: #ef4444 !important; color: #fff !important; border-color: #ef4444 !important; animation: pulse 1.4s infinite; }
+
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.7; } }
+
+        /* ====== MOOD GRID ====== */
+        .mood-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        @media (max-width: 800px) { .mood-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 400px) { .mood-grid { grid-template-columns: repeat(2, 1fr); } }
+
+        .mood-btn {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px 11px 16px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            display: block;
+        }
+        .mood-btn::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: var(--mc, var(--accent));
+            border-radius: 12px 0 0 12px;
+            transition: opacity 0.2s;
+        }
+        .mood-btn .mood-name {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600; font-size: 13px;
+            color: var(--text);
+            display: block; margin-bottom: 3px;
+            transition: color 0.2s;
+        }
+        .mood-btn .mood-bpm {
+            font-size: 10px; color: var(--text-light);
+            font-weight: 500; margin-bottom: 2px; display: block;
+        }
+        .mood-btn .mood-desc {
+            font-size: 10.5px; color: var(--text-light);
+            display: block; line-height: 1.35;
+        }
+        .mood-btn:hover:not(.mood-active) { border-color: var(--text-light); }
+        .mood-btn.mood-active {
+            border-color: var(--mc, var(--accent));
+            background: rgba(20,184,166,0.06);
+        }
+        .mood-btn.mood-active .mood-name { color: var(--mc, var(--accent)); }
+
+        /* ====== MELODY DISPLAY ====== */
+        .melody-display {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 13px;
+            min-height: 90px; max-height: 200px;
+            overflow-y: auto;
+            font-size: 11.5px; color: var(--text);
+            line-height: 1.7;
+        }
+        .note {
+            display: inline-block;
+            background: var(--card); color: var(--text);
+            padding: 2px 8px; margin: 3px;
+            border-radius: 6px; font-weight: 600;
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .note.ending-note { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(20,184,166,0.35); }
+        .note-meta { font-weight: 400; color: var(--text-light); margin-left: 3px; font-size: 9.5px; }
+
+        /* ====== CONTROLS ====== */
+        .status {
+            text-align: center; font-size: 12.5px; font-weight: 600;
+            min-height: 20px; margin: 10px 0;
+            color: #166534; letter-spacing: 0.1px;
+        }
+        body.dark .status { color: #4ade80; }
+
+        .slider-container { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+        input[type="range"] { flex: 1; accent-color: var(--accent); cursor: pointer; }
+
+        .ai-bar {
+            display: flex; gap: 8px; justify-content: center;
+            flex-wrap: wrap; margin-bottom: 14px;
+        }
+        .ai-bar button { width: auto; padding: 13px 28px; font-size: 13.5px; }
+        .ai-bar .btn-main { padding: 14px 36px; font-size: 14px; letter-spacing: 0.3px; }
+
+        .ctrl-bar {
+            display: flex; gap: 6px; justify-content: center;
+            flex-wrap: wrap; margin-bottom: 12px;
+        }
+        .ctrl-bar button { width: auto; padding: 9px 18px; }
+
+        .footer {
+            text-align: center; margin-top: 28px;
+            color: var(--text-light); font-size: 12px; font-weight: 500;
+        }
+
+        /* chord progression badge */
+        .chord-badge {
+            display: inline-block;
+            background: rgba(20,184,166,0.1);
+            border: 1px solid rgba(20,184,166,0.25);
+            color: var(--accent);
+            font-size: 10px; font-weight: 700;
+            padding: 2px 7px; border-radius: 5px;
+            letter-spacing: 0.5px;
+            margin-left: 6px;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* tracks panel */
+        .track-toolbar { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+        .text-input {
+            flex: 1; min-width: 140px; padding: 9px 12px;
+            border-radius: 10px; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text);
+            font-family: 'Inter', sans-serif; font-size: 12px;
+        }
+        .text-input:focus { outline: none; border-color: var(--accent); }
+        .track-toolbar button { width: auto; padding: 9px 16px; white-space: nowrap; }
+        .track-row {
+            display: flex; align-items: center; gap: 8px;
+            border: 1px solid var(--border); border-radius: 10px;
+            padding: 8px 12px; margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+        .track-row .track-name { font-size: 12.5px; font-weight: 600; }
+        .track-row .track-meta { font-size: 10px; color: var(--text-light); white-space: nowrap; flex: 1; }
+        .track-row .track-actions { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+        .mini-btn { width: auto; padding: 6px 12px; font-size: 11px; }
+        .mini-btn:disabled { opacity: 0.6; }
+        .empty-hint { font-size: 11.5px; color: var(--text-light); }
+        #formatControls .fmt-btn { padding: 9px 16px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Asoa AI</h1>
+        <button class="theme-btn" id="themeBtn">Тёмная тема</button>
+    </header>
+
+    <div class="bento-grid">
+
+        <!-- KEYBOARD -->
+        <div class="card keyboard-card">
+            <div class="section-title">Хроматическая клавиатура — 2 октавы</div>
+            <canvas id="particleCanvas" style="position:absolute;top:0;left:0;pointer-events:none;z-index:1;width:100%;height:100%;"></canvas>
+            <div class="keyboard-wrapper">
+                <div class="keyboard" id="keyboard"></div>
+            </div>
+        </div>
+
+        <!-- INSTRUMENT -->
+        <div class="card panel-4">
+            <div class="section-title">Инструмент</div>
+            <div class="button-group" id="instrumentControls" style="display:grid;grid-template-columns:1fr 1fr;">
+                <button class="inst-btn active" data-inst="piano">Guitar</button>
+                <button class="inst-btn" data-inst="realpiano">Piano</button>
+                <button class="inst-btn" data-inst="bell">Bell</button>
+                <button class="inst-btn" data-inst="trumpet">Trumpet</button>
+                <button class="inst-btn" data-inst="violin">Violin</button>
+                <button class="inst-btn" data-inst="drum">Drum</button>
+            </div>
+        </div>
+
+        <!-- OCTAVE + DURATION -->
+        <div class="card panel-4">
+            <div class="section-title">Октава и длительность</div>
+            <div class="button-group" id="octaveControls" style="margin-bottom:8px;">
+                <button class="oct-btn" data-oct="-1">-1 окт</button>
+                <button class="oct-btn active" data-oct="0">Центр</button>
+                <button class="oct-btn" data-oct="1">+1 окт</button>
+                <button class="oct-btn" data-oct="2">+2 окт</button>
+            </div>
+            <div class="button-group" id="durationControls">
+                <button class="dur-btn" data-dur="0.25">1/16</button>
+                <button class="dur-btn" data-dur="0.5">1/8</button>
+                <button class="dur-btn active" data-dur="1">1/4</button>
+                <button class="dur-btn" data-dur="2">1/2</button>
+            </div>
+        </div>
+
+        <!-- ECHO -->
+        <div class="card panel-4">
+            <div class="section-title">Режим эхо</div>
+            <div class="button-group" id="echoControls">
+                <button class="echo-btn active" data-echo="none">Выкл</button>
+                <button class="echo-btn" data-echo="short">Малое</button>
+                <button class="echo-btn" data-echo="medium">Среднее</button>
+                <button class="echo-btn" data-echo="space">Большое</button>
+            </div>
+        </div>
+
+        <!-- MOOD GRID -->
+        <div class="card panel-12">
+            <div class="section-title">Настроение ИИ <span class="chord-badge" id="chordBadge">C - G - Am - F</span></div>
+            <div style="font-size:10.5px;color:var(--text-light);margin-bottom:8px;">Можно выбрать сразу несколько — ИИ смешает их характеры в одном треке</div>
+            <div class="mood-grid" id="moodGrid"></div>
+        </div>
+
+        <!-- MELODY DISPLAY -->
+        <div class="card panel-12">
+            <div class="section-title">Сгенерированный паттерн</div>
+            <div class="melody-display" id="melodyDisplay">Паттерн пуст. Нажмите клавишу или запустите ИИ...</div>
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="card panel-12">
+            <div class="ctrl-bar">
+                <button id="recordBtn">Начать запись</button>
+                <button id="stopRecordBtn" disabled>Стоп запись</button>
+                <button id="clearBtn">Очистить</button>
+                <button id="randomBtn">Набросок</button>
+            </div>
+
+            <div class="status" id="status">Привет! Я готов играть. Нажми клавишу или попроси меня сочинить трек.</div>
+
+            <div class="ai-bar">
+                <button id="aiBtn" class="btn-accent btn-main">ИИ — Создать трек</button>
+                <button id="playBtn">Воспроизвести</button>
+                <button id="stopBtn" class="btn-danger">Стоп</button>
+            </div>
+
+            <div class="slider-container">
+                <span style="font-size:11px;color:var(--text-light);min-width:78px;">Громкость</span>
+                <input type="range" id="volumeSlider" min="0.1" max="1.0" step="0.05" value="0.7">
+                <span id="volumeValue" style="font-weight:600;min-width:36px;text-align:right;font-size:12px;">70%</span>
+            </div>
+            <div class="slider-container">
+                <span style="font-size:11px;color:var(--text-light);min-width:78px;">Темп (BPM)</span>
+                <input type="range" id="tempoSlider" min="40" max="220" value="110" step="2">
+                <span id="bpmValue" style="font-weight:600;min-width:36px;text-align:right;font-size:12px;">110</span>
+            </div>
+        </div>
+
+        <!-- SAVED TRACKS -->
+        <div class="card panel-12">
+            <div class="section-title">Моя библиотека треков</div>
+            <div class="track-toolbar">
+                <input id="trackNameInput" type="text" class="text-input" placeholder="Название трека">
+                <button id="saveTrackBtn">Сохранить в библиотеку</button>
+            </div>
+            <div id="savedTracksList"></div>
+            <div style="font-size:10.5px;color:var(--text-light);margin-top:8px;line-height:1.5;">
+                Треки сохраняются прямо в браузере на этом устройстве (localStorage) и остаются после закрытия вкладки. У каждого трека — отдельная кнопка «Скачать», которая рендерит полноценный аудиофайл.
+            </div>
+        </div>
+
+        <!-- DOWNLOAD -->
+        <div style="grid-column:span 12;text-align:center;">
+            <div style="display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;">
+                <div class="button-group" id="formatControls" style="display:inline-flex;width:auto;">
+                    <button class="fmt-btn active" data-fmt="mp3" style="width:auto;padding:9px 16px;">MP3 (320 кбит/с)</button>
+                    <button class="fmt-btn" data-fmt="wav" style="width:auto;padding:9px 16px;">WAV (без потерь)</button>
+                </div>
+                <button id="downloadBtn" class="btn-accent" style="width:auto;padding:13px 40px;font-size:13px;">
+                    Скачать текущий трек
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="footer">Автор: Vesfog &bull; Asoa AI</div>
+</div>
+
+<script>
+/* ======================================================
+   STATE
+====================================================== */
+let audioCtx;
+let liveBus = null;
+let activeSources = [];
+let activeOutputs = []; // {output, send} каждой ноты — для очистки графа при ручном Stop
+let scheduledTimeouts = [];
+let melody = [];
+let lastEndingNoteRefs = [];
+let savedTracks = [];
+let isRecording = false;
+let currentStyles  = ['happy']; // массив — поддержка нескольких выбранных стилей одновременно
+let currentDuration = 1;
+let currentInstrument = 'piano';
+let currentOctave = 0;
+let currentVolume = 0.7;
+let currentEcho = 'none';
+let currentFormat = 'mp3';
+const TRACKS_STORAGE_KEY = 'asoa_ai_tracks_v1';
+
+/* ======================================================
+   "ГОЛОС ИИ" — статус-строка говорит от первого лица,
+   комментирует свои действия и иногда спрашивает мнение.
+====================================================== */
+const instrumentNames = {
+    piano: 'гитару', realpiano: 'настоящее пианино', bell: 'колокольчик',
+    trumpet: 'трубу', violin: 'скрипку', drum: 'барабан'
+};
+
+let statusIdleTimer = null;
+const idleQuestions = [
+    'Как тебе текущее звучание — хочешь, что-то поменяю?',
+    'Слушай, а не попробовать ли другой инструмент? Решать тебе.',
+    'Я тут просто жду команды. Что играем дальше?',
+    'Если хочешь чего-то более энергичного — переключи настроение, я подхвачу.',
+    'Готов сгенерировать что-то новое в любой момент, только скажи.'
+];
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function clearIdleTimer() {
+    if (statusIdleTimer) { clearTimeout(statusIdleTimer); statusIdleTimer = null; }
+}
+
+function scheduleIdleQuestion(delayMs = 7000) {
+    clearIdleTimer();
+    statusIdleTimer = setTimeout(() => {
+        setStatus(pick(idleQuestions), { silent: true });
+    }, delayMs);
+}
+
+/* Унифицированный вывод "речи" ИИ в статус-строку.
+   type определяет банк фраз; данные подставляются в шаблон. */
+function setStatus(text, opts = {}) {
+    const el = document.getElementById('status');
+    if (!el) return;
+    el.textContent = text;
+    if (!opts.silent) scheduleIdleQuestion(opts.idleDelay || 8000);
+}
+
+function aiSay(type, data = {}) {
+    const inst = instrumentNames[data.instrument] || data.instrument || 'звук';
+    const banks = {
+        note: [
+            `Играю ${inst} — слышишь, как звучит?`,
+            `Вот нота на ${inst}. Норм такое?`,
+            `${inst[0].toUpperCase() + inst.slice(1)} в деле. Нравится тембр?`
+        ],
+        instrumentChange: [
+            `Беру ${inst} как основной инструмент — теперь во ВСЕХ стилях бас и гармония будут на нём.`,
+            `Ставлю ${inst} на главную роль. В любом стиле, который выберешь, он будет звучать как основа.`,
+            `Окей, ${inst} теперь "пианино" этого трека — задействую его в каждом настроении.`
+        ],
+        aiThinking: [
+            'Так, обдумываю гармонию... сейчас соберу что-то интересное.',
+            'Анализирую настроение и подбираю аккорды — секунду.',
+            'Прикидываю мелодическую линию под текущий стиль...'
+        ],
+        aiListening: (d) => `Слушаю, что ты сыграл... Похоже на «${d.mood}» — беру этот стиль и подбираю гармонию под твою мелодию.`,
+        aiImprovedUser: (d) => `Готово! Добавил бас и гармонию под твою мелодию и продолжил трек в стиле «${d.mood}» — ${d.count} новых нот, ${d.bpm} BPM. Слушаем?`,
+        aiDone: (d) => `Готово! Сделал ${d.count} нот в духе «${d.mood}», темп ${d.bpm} BPM. Как звучит — нравится?`,
+        playStart: [
+            'Запускаю воспроизведение. Слушаем вместе?',
+            'Включаю трек — скажи потом, как впечатления.',
+            'Играю то, что получилось. Интересно, что скажешь.'
+        ],
+        duringPlay: [
+            'Слышишь, как тут всё перекликается?',
+            'Эта часть мне особенно нравится.',
+            'Послушай повнимательнее этот момент.',
+            'Заметил, как меняется громкость к концу фразы?'
+        ],
+        playEnd: [
+            'Вот и всё. Ну как, понравилось звучание?',
+            'Доиграл. Что думаешь — оставляем так или что-то меняем?',
+            'Закончил воспроизведение. Хочешь повторить или попробуем иначе?'
+        ],
+        stopped: [
+            'Остановился. Скажи, когда продолжать.',
+            'Окей, стою и жду команды.',
+            'Стоп. Готов запустить заново в любой момент.'
+        ],
+        recording: [
+            'Записываю всё, что ты играешь. Не торопись.',
+            'Слушаю и записываю каждую ноту.',
+            'Включил запись — играй спокойно, я всё сохраню.'
+        ],
+        recordDone: [
+            'Запись сохранена. Хочешь сразу прослушать?',
+            'Готово, всё записал. Прогнать с начала?',
+            'Запись остановлена и сохранена в паттерн.'
+        ],
+        cleared: [
+            'Очистил паттерн. Начинаем с чистого листа?',
+            'Всё стёрто. Что будем создавать теперь?',
+            'Паттерн пуст. Жду новых идей.'
+        ],
+        sketch: [
+            'Набросал черновик в текущем настроении — как тебе направление?',
+            'Сделал быстрый набросок. Это похоже на то, что ты хотел?',
+            'Вот черновая идея. Развиваем или переделываем?'
+        ],
+        empty: [
+            'Тут пока пусто — добавь ноты или запусти ИИ-генерацию.',
+            'Паттерн пустой, мне нечего сыграть.',
+            'Нет ни одной ноты. Нажми клавишу или попроси меня сочинить трек.'
+        ],
+        saved: (d) => `Сохранил «${d.name}» в библиотеку. Можешь скачать в любой момент.`,
+        loaded: (d) => `Загрузил «${d.name}». Запускаем?`,
+        downloading: [
+            'Рендерю аудио в хорошем качестве, подожди немного...',
+            'Собираю файл — стараюсь сохранить звук максимально честно.',
+            'Кодирую трек, почти готово...'
+        ],
+        downloaded: (d) => `Файл «${d.name}» сохранён на устройство в ${d.format}. Как тебе результат?`,
+        moodChange: (d) => `Настроение — ${d.mood}. ${d.desc} Погружаемся?`
+    };
+    const bank = banks[type];
+    let text;
+    if (typeof bank === 'function') text = bank(data);
+    else if (Array.isArray(bank)) text = pick(bank);
+    else text = '...';
+    setStatus(text, data.opts || {});
+}
+
+/* ======================================================
+   KEYBOARD LAYOUT
+====================================================== */
+const pianoKeys = [
+    {note:'C3',isBlack:false},{note:'C#3',isBlack:true},
+    {note:'D3',isBlack:false},{note:'D#3',isBlack:true},
+    {note:'E3',isBlack:false},{note:'F3',isBlack:false},
+    {note:'F#3',isBlack:true},{note:'G3',isBlack:false},
+    {note:'G#3',isBlack:true},{note:'A3',isBlack:false},
+    {note:'A#3',isBlack:true},{note:'B3',isBlack:false},
+    {note:'C4',isBlack:false},{note:'C#4',isBlack:true},
+    {note:'D4',isBlack:false},{note:'D#4',isBlack:true},
+    {note:'E4',isBlack:false},{note:'F4',isBlack:false},
+    {note:'F#4',isBlack:true},{note:'G4',isBlack:false},
+    {note:'G#4',isBlack:true},{note:'A4',isBlack:false},
+    {note:'A#4',isBlack:true},{note:'B4',isBlack:false},
+    {note:'C5',isBlack:false}
+];
+
+const noteFrequencies = {
+    'C3':130.81,'C#3':138.59,'D3':146.83,'D#3':155.56,'E3':164.81,
+    'F3':174.61,'F#3':185.00,'G3':196.00,'G#3':207.65,'A3':220.00,
+    'A#3':233.08,'B3':246.94,
+    'C4':261.63,'C#4':277.18,'D4':293.66,'D#4':311.13,'E4':329.63,
+    'F4':349.23,'F#4':369.99,'G4':392.00,'G#4':415.30,'A4':440.00,
+    'A#4':466.16,'B4':493.88,
+    'C5':523.25
+};
+
+/* ======================================================
+   MOOD PROFILES — 9 настроений
+====================================================== */
+const moodProfiles = {
+    happy: {
+        label: 'Веселая',
+        description: 'Быстрый мажор, заводной ритм',
+        bpmLabel: '140 – 160 BPM',
+        color: '#f59e0b',
+        bpmBase: 148, bpmVariance: 10,
+        chordProgression: [
+            { root: 'C',  label: 'C',   notes: ['C3','E3','G3','C4','E4','G4','C5'] },
+            { root: 'G',  label: 'G',   notes: ['G3','B3','D4','G4','B4']           },
+            { root: 'Am', label: 'Am',  notes: ['A3','C4','E4','A4']                },
+            { root: 'F',  label: 'F',   notes: ['F3','A3','C4','F4','A4']           }
+        ],
+        rhythmWeights: { 0.25:1, 0.5:5, 1:5, 2:1 },
+        harmonyDensity: 1,
+        melodyOctave: 1, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'short',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'trumpet', bell:'bell' },
+        bellFreq: 0.4, numCycles: 2,
+        endingStyle: 'abrupt'
+    },
+    sad: {
+        label: 'Грустная',
+        description: 'Медленный минор, долгие фразы',
+        bpmLabel: '58 – 75 BPM',
+        color: '#3b82f6',
+        bpmBase: 65, bpmVariance: 8,
+        chordProgression: [
+            { root: 'Am', label: 'Am', notes: ['A3','C4','E4','A4']          },
+            { root: 'F',  label: 'F',  notes: ['F3','A3','C4','F4','A4']     },
+            { root: 'C',  label: 'C',  notes: ['C3','E3','G3','C4','E4']     },
+            { root: 'Em', label: 'Em', notes: ['E3','G3','B3','E4','G4']     }
+        ],
+        rhythmWeights: { 1:2, 2:5, 4:4 },
+        harmonyDensity: 2,
+        melodyOctave: 0, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'medium',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'violin', bell:'bell' },
+        bellFreq: 0.2, numCycles: 2,
+        endingStyle: 'fade'
+    },
+    crazy: {
+        label: 'Сумасшедшая',
+        description: 'Хроматический хаос, максимальная скорость',
+        bpmLabel: '180 – 210 BPM',
+        color: '#ef4444',
+        bpmBase: 192, bpmVariance: 18,
+        chordProgression: [
+            { root: 'Cdim',  label: 'Cdim',  notes: ['C3','D#3','F#3','A3','C4','D#4','F#4','A4']  },
+            { root: 'C#dim', label: 'C#dim', notes: ['C#3','E3','G3','A#3','C#4','E4','G4','A#4']   },
+            { root: 'Ddim',  label: 'Ddim',  notes: ['D3','F3','G#3','B3','D4','F4','G#4','B4']     },
+            { root: 'D#dim', label: 'D#dim', notes: ['D#3','F#3','A3','C4','D#4','F#4','A4','C5']   }
+        ],
+        rhythmWeights: { 0.25:6, 0.5:5, 1:2, 2:1 },
+        harmonyDensity: 0.5,
+        melodyOctave: 0, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'none',
+        instruments: { bass:'trumpet', harmony:'trumpet', melody:'trumpet', bell:'bell' },
+        bellFreq: 0, numCycles: 2,
+        dissonant: true, skipBass: true,
+        endingStyle: 'abrupt'
+    },
+    calm: {
+        label: 'Спокойная',
+        description: 'Пентатоника, воздух и пространство',
+        bpmLabel: '65 – 80 BPM',
+        color: '#06b6d4',
+        bpmBase: 70, bpmVariance: 6,
+        chordProgression: [
+            { root: 'C',  label: 'C',  notes: ['C3','E3','G3','C4','E4','G4']    },
+            { root: 'Am', label: 'Am', notes: ['A3','C4','E4','A4']               },
+            { root: 'Em', label: 'Em', notes: ['E3','G3','B3','E4','G4']          },
+            { root: 'G',  label: 'G',  notes: ['G3','D4','G4','B4']              }
+        ],
+        rhythmWeights: { 1:1, 2:4, 4:6 },
+        harmonyDensity: 4,
+        melodyOctave: 0, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'space',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'violin', bell:'bell' },
+        bellFreq: 0.25, numCycles: 2,
+        endingStyle: 'fade'
+    },
+    epic: {
+        label: 'Эпичная',
+        description: 'Дорийская гамма, нарастающая мощь',
+        bpmLabel: '98 – 118 BPM',
+        color: '#7c3aed',
+        bpmBase: 106, bpmVariance: 8,
+        chordProgression: [
+            { root: 'Dm', label: 'Dm', notes: ['D3','F3','A3','D4','F4','A4']         },
+            { root: 'C',  label: 'C',  notes: ['C3','E3','G3','C4','E4','G4']         },
+            { root: 'Bb', label: 'Bb', notes: ['A#3','D4','F4','A#4']                 },
+            { root: 'Am', label: 'Am', notes: ['A3','C4','E4','A4','C5']              }
+        ],
+        rhythmWeights: { 0.5:1, 1:6, 2:4, 4:2 },
+        harmonyDensity: 1,
+        melodyOctave: 1, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'medium',
+        instruments: { bass:'realpiano', harmony:'violin', melody:'trumpet', bell:'bell' },
+        bellFreq: 0.3, numCycles: 2,
+        endingStyle: 'sustain'
+    },
+    nostalgic: {
+        label: 'Ностальгия',
+        description: 'Лидийская гамма, тёплый джазовый цвет',
+        bpmLabel: '80 – 95 BPM',
+        color: '#d97706',
+        bpmBase: 86, bpmVariance: 8,
+        chordProgression: [
+            { root: 'Cmaj7', label: 'Cmaj7', notes: ['C3','E3','G3','B3','C4','E4','G4','B4'] },
+            { root: 'D',     label: 'D',     notes: ['D3','F#3','A3','D4','F#4','A4']         },
+            { root: 'Em',    label: 'Em',    notes: ['E3','G3','B3','E4','G4']                },
+            { root: 'Am',    label: 'Am',    notes: ['A3','C4','E4','A4']                     }
+        ],
+        rhythmWeights: { 0.5:2, 1:5, 2:4, 4:1 },
+        harmonyDensity: 2,
+        melodyOctave: 0, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'short',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'realpiano', bell:'bell' },
+        bellFreq: 0.2, numCycles: 2,
+        endingStyle: 'fade'
+    },
+    mysterious: {
+        label: 'Таинственная',
+        description: 'Фригийская гамма, тень и глубина',
+        bpmLabel: '72 – 90 BPM',
+        color: '#4f46e5',
+        bpmBase: 80, bpmVariance: 8,
+        chordProgression: [
+            { root: 'Cm', label: 'Cm', notes: ['C3','D#3','G3','C4','D#4','G4']      },
+            { root: 'Ab', label: 'Ab', notes: ['G#3','C4','D#4','G#4']               },
+            { root: 'Bb', label: 'Bb', notes: ['A#3','D4','F4','A#4']               },
+            { root: 'Fm', label: 'Fm', notes: ['F3','G#3','C4','F4','G#4']          }
+        ],
+        rhythmWeights: { 1:3, 2:6, 4:4 },
+        harmonyDensity: 2,
+        melodyOctave: 0, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'space',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'violin', bell:'bell' },
+        bellFreq: 0.2, numCycles: 2,
+        endingStyle: 'fade'
+    },
+    romantic: {
+        label: 'Романтик',
+        description: 'Мягкий мажор с септимами',
+        bpmLabel: '70 – 85 BPM',
+        color: '#ec4899',
+        bpmBase: 76, bpmVariance: 8,
+        chordProgression: [
+            { root: 'Cmaj7', label: 'Cmaj7', notes: ['C3','E3','G3','B3','C4','E4','G4','B4']   },
+            { root: 'Fmaj7', label: 'Fmaj7', notes: ['F3','A3','C4','E4','F4','A4','C5']         },
+            { root: 'Am7',   label: 'Am7',   notes: ['A3','C4','E4','G4','A4']                   },
+            { root: 'G7',    label: 'G7',    notes: ['G3','B3','D4','F4','G4','B4']              }
+        ],
+        rhythmWeights: { 1:3, 2:6, 4:2 },
+        harmonyDensity: 2,
+        melodyOctave: 1, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'medium',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'violin', bell:'bell' },
+        bellFreq: 0.3, numCycles: 2,
+        endingStyle: 'ritardando'
+    },
+    scary: {
+        label: 'Страшный',
+        description: 'Бэкрумс-эмбиент: диссонансы, гул и тревожная пустота',
+        bpmLabel: '40 – 55 BPM',
+        color: '#52525b',
+        bpmBase: 46, bpmVariance: 6,
+        chordProgression: [
+            { root: 'cl1', label: 'C·',  notes: ['C3','C#3','F#3','G3','C4'] },
+            { root: 'cl2', label: 'F#·', notes: ['F3','F#3','B3','C4','F4'] },
+            { root: 'cl3', label: 'D·',  notes: ['D3','D#3','G#3','A3','D4'] },
+            { root: 'cl4', label: 'A·',  notes: ['A3','A#3','D#4','E4','A4'] }
+        ],
+        rhythmWeights: { 1:1, 2:3, 4:8 },
+        harmonyDensity: 4,
+        melodyOctave: -1, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'space',
+        instruments: { bass:'violin', harmony:'bell', melody:'violin', bell:'bell' },
+        bellFreq: 0.15, numCycles: 2,
+        dissonant: true,
+        endingStyle: 'fade'
+    },
+    jazz: {
+        label: 'Джаз',
+        description: 'Свинг, септаккорды и ленивая импровизация',
+        bpmLabel: '92 – 112 BPM',
+        color: '#b45309',
+        bpmBase: 102, bpmVariance: 10,
+        chordProgression: [
+            { root: 'Dm7',   label: 'Dm7',   notes: ['D3','F3','A3','C4','D4','F4','A4'] },
+            { root: 'G7',    label: 'G7',    notes: ['G3','B3','D4','F4','G4','B4']        },
+            { root: 'Cmaj7', label: 'Cmaj7', notes: ['C3','E3','G3','B3','C4','E4','G4','B4'] },
+            { root: 'A7',    label: 'A7',    notes: ['A3','C#4','E4','G4','A4']             }
+        ],
+        rhythmWeights: { 0.25:2, 0.5:5, 1:5, 2:2 },
+        harmonyDensity: 1.5,
+        melodyOctave: 0, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'short',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'trumpet', bell:'bell' },
+        bellFreq: 0.15, numCycles: 2,
+        endingStyle: 'ritardando'
+    },
+    lullaby: {
+        label: 'Колыбельная',
+        description: 'Тихая и нежная — для спокойного засыпания',
+        bpmLabel: '50 – 62 BPM',
+        color: '#a78bfa',
+        bpmBase: 56, bpmVariance: 4,
+        chordProgression: [
+            { root: 'C',  label: 'C',  notes: ['C3','E3','G3','C4','E4'] },
+            { root: 'F',  label: 'F',  notes: ['F3','A3','C4','F4']      },
+            { root: 'Am', label: 'Am', notes: ['A3','C4','E4','A4']      },
+            { root: 'G',  label: 'G',  notes: ['G3','C4','E4','G4']      }
+        ],
+        rhythmWeights: { 2:3, 4:6 },
+        harmonyDensity: 4,
+        melodyOctave: 0, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'space',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'bell', bell:'bell' },
+        bellFreq: 0.2, numCycles: 2,
+        endingStyle: 'fade'
+    },
+    drive: {
+        label: 'Драйв',
+        description: 'Чёткий бит и агрессивная энергия',
+        bpmLabel: '124 – 138 BPM',
+        color: '#dc2626',
+        bpmBase: 130, bpmVariance: 6,
+        chordProgression: [
+            { root: 'Em', label: 'Em', notes: ['E3','G3','B3','E4','G4']     },
+            { root: 'C',  label: 'C',  notes: ['C3','E3','G3','C4','E4']     },
+            { root: 'G',  label: 'G',  notes: ['G3','B3','D4','G4','B4']     },
+            { root: 'D',  label: 'D',  notes: ['D3','F#3','A3','D4','F#4']   }
+        ],
+        rhythmWeights: { 0.25:4, 0.5:5, 1:3 },
+        harmonyDensity: 0.5,
+        melodyOctave: 1, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'none',
+        instruments: { bass:'realpiano', harmony:'trumpet', melody:'trumpet', bell:'bell' },
+        bellFreq: 0.1, numCycles: 2,
+        useDrums: true,
+        endingStyle: 'abrupt'
+    },
+    folk: {
+        label: 'Народная',
+        description: 'Тёплая мелодия, скрипка ведёт за собой',
+        bpmLabel: '95 – 110 BPM',
+        color: '#16a34a',
+        bpmBase: 102, bpmVariance: 6,
+        chordProgression: [
+            { root: 'G',  label: 'G',  notes: ['G3','B3','D4','G4','B4']   },
+            { root: 'C',  label: 'C',  notes: ['C3','E3','G3','C4','E4']   },
+            { root: 'D',  label: 'D',  notes: ['D3','F#3','A3','D4','F#4'] },
+            { root: 'Em', label: 'Em', notes: ['E3','G3','B3','E4','G4']   }
+        ],
+        rhythmWeights: { 0.5:3, 1:6, 2:3 },
+        harmonyDensity: 1,
+        melodyOctave: 1, bassOctave: -1, harmonyOctave: 0,
+        echoMode: 'short',
+        instruments: { bass:'realpiano', harmony:'realpiano', melody:'violin', bell:'bell' },
+        bellFreq: 0.25, numCycles: 2,
+        endingStyle: 'fade'
+    }
+};
+
+/* ======================================================
+   CANVAS / PARTICLES
+====================================================== */
+let canvas, ctx2d, particles = [], particleAnimRunning = false;
+
+function initCanvas() {
+    canvas = document.getElementById('particleCanvas');
+    ctx2d  = canvas.getContext('2d');
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+}
+function resizeCanvas() {
+    if (!canvas) return;
+    canvas.width  = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+}
+function triggerAnimation(noteName, color) {
+    const keyEl = document.querySelector(`.key[data-note="${noteName}"]`);
+    if (!keyEl || !ctx2d || !canvas) return;
+    const rect       = keyEl.getBoundingClientRect();
+    const parentRect = canvas.getBoundingClientRect();
+    const x = (rect.left - parentRect.left) + rect.width / 2;
+    const y = keyEl.classList.contains('black') ? 95 : 145;
+    keyEl.classList.add('playing');
+    setTimeout(() => keyEl.classList.remove('playing'), 250);
+    const c = color || '#14b8a6';
+    for (let i = 0; i < 14; i++) {
+        particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: -2 - Math.random() * 5,
+            life: 28 + Math.random() * 22,
+            color: c,
+            size: 1.8 + Math.random() * 2.8
+        });
+    }
+    /* БАГ-ФИКС: раньше тут запускался animateParticles() при каждом
+       вызове triggerAnimation, и если предыдущий анимационный цикл
+       ещё не закончился (а на длинной мелодии с частыми нотами он
+       почти никогда не успевает), стартовал ВТОРОЙ независимый
+       requestAnimationFrame-цикл поверх первого. На длинной мелодии
+       с сотнями нот это плодило десятки параллельных циклов
+       одновременно — каждый чистил и перерисовывал канвас на каждый
+       кадр и независимо "состаривал" одни и те же частицы, что
+       заметно грузило главный поток браузера и могло провоцировать
+       просадки/заикания звука. Флаг ниже гарантирует, что активен
+       только один цикл анимации, сколько бы нот не сыграло подряд. */
+    if (!particleAnimRunning) {
+        particleAnimRunning = true;
+        animateParticles();
+    }
+}
+function animateParticles() {
+    if (!ctx2d || !canvas) { particleAnimRunning = false; return; }
+    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.13; p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx2d.globalAlpha = p.life / 50;
+        ctx2d.fillStyle   = p.color;
+        ctx2d.beginPath();
+        ctx2d.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx2d.fill();
+    }
+    ctx2d.globalAlpha = 1;
+    if (particles.length > 0) {
+        requestAnimationFrame(animateParticles);
+    } else {
+        particleAnimRunning = false;
+    }
+}
+
+/* ======================================================
+   AUDIO ENGINE
+   Единая шина (мастер-компрессор + общие эхо-шины), которую
+   используют и живое воспроизведение, и оффлайн-рендер в WAV.
+   Это убирает "трепет/искажение" звука: раньше каждая нота с
+   эхо создавала свой собственный бесконечный delay-feedback
+   узел, и при большом количестве нот сигналы накладывались
+   друг на друга и клиппировались.
+====================================================== */
+function buildBus(ctx) {
+    /* Ступень 1: мягкий компрессор-выравниватель — заранее усредняет
+       динамику, чтобы лимитеру ниже не приходилось "вырезать" слишком
+       резко. */
+    const comp1 = ctx.createDynamicsCompressor();
+    comp1.threshold.value = -24;
+    comp1.knee.value = 18;
+    comp1.ratio.value = 6;
+    comp1.attack.value = 0.002;
+    comp1.release.value = 0.18;
+
+    /* Ступень 2: лимитер безопасности — почти мгновенная атака и высокий
+       ratio. Сколько бы нот ни сыграло одновременно, выше этого порога
+       сигнал просто не поднимется — это убирает "поломанный" треск при
+       плотной полифонии. */
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.08;
+
+    /* Ступень 3: мягкий клиппер (waveshaper) — последняя страховка.
+       Если пик всё же проскочит лимитер, он аккуратно "подрезается"
+       по кривой tanh, а не обрезается жёстко, как при цифровом
+       клиппинге. */
+    const shaper = ctx.createWaveShaper();
+    const curveLen = 1024;
+    const curve = new Float32Array(curveLen);
+    for (let i = 0; i < curveLen; i++) {
+        const x = (i / (curveLen - 1)) * 2 - 1;
+        curve[i] = Math.tanh(x * 1.15) / Math.tanh(1.15);
+    }
+    shaper.curve = curve;
+    shaper.oversample = '4x';
+
+    const out = ctx.createGain();
+    out.gain.value = 0.92;
+
+    comp1.connect(limiter);
+    limiter.connect(shaper);
+    shaper.connect(out);
+    out.connect(ctx.destination);
+
+    const dry = ctx.createGain();
+    dry.gain.value = 1;
+    dry.connect(comp1);
+
+    const echo = {};
+    [['short', 0.16, 0.20], ['medium', 0.34, 0.38], ['space', 0.62, 0.50]].forEach(([name, t, fb]) => {
+        const input = ctx.createGain(); input.gain.value = 1;
+        const delay = ctx.createDelay(2.0); delay.delayTime.value = t;
+        const feedback = ctx.createGain(); feedback.gain.value = fb;
+        const wet = ctx.createGain(); wet.gain.value = 0.4;
+        input.connect(delay);
+        delay.connect(feedback);
+        feedback.connect(delay);
+        delay.connect(wet);
+        wet.connect(comp1);
+        echo[name] = input;
+    });
+
+    return { dry, echo, masterVolume: 1 };
+}
+
+function getAudioCtx() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        liveBus = buildBus(audioCtx);
+    }
+    return audioCtx;
+}
+
+/* Строит звуковые узлы конкретного инструмента. Работает одинаково
+   и в реальном AudioContext, и в OfflineAudioContext (для экспорта),
+   поэтому живой звук и WAV-файл звучат идентично. */
+function buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol) {
+    const output = ctx.createGain();
+    output.gain.value = 1;
+    const sources = [];
+
+    if (inst === 'bell') {
+        const partials = [1, 2.756, 4.81];
+        const amps     = [1, 0.45, 0.22];
+        /* БАГ-ФИКС: пик считаем от реальной суммы гармоник, а не
+           магической константой — так даже одна нота не превышает
+           безопасный уровень громкости. */
+        const harmonicSum = amps.reduce((s, a) => s + a, 0);
+        const peakTarget = vol * 0.34 / harmonicSum;
+        const tail = Math.max(0.8, durSec * 1.4);
+        const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 3200;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, startAt);
+        g.gain.linearRampToValueAtTime(peakTarget, startAt + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, startAt + tail);
+        partials.forEach((p, i) => {
+            const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq * p;
+            const og = ctx.createGain(); og.gain.value = amps[i];
+            o.connect(og); og.connect(filt);
+            o.start(startAt); o.stop(startAt + tail + 0.3);
+            sources.push(o);
+        });
+        filt.connect(g); g.connect(output);
+
+    } else if (inst === 'trumpet') {
+        const sustain = Math.max(0.18, durSec * 0.9);
+        const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = freq;
+        const o2 = ctx.createOscillator(); o2.type = 'square';   o2.frequency.value = freq * 1.004;
+        const filt = ctx.createBiquadFilter(); filt.type = 'bandpass';
+        filt.frequency.value = Math.min(3400, freq * 3.2); filt.Q.value = 1.7;
+        const g = ctx.createGain();
+        const peak = vol * 0.17;
+        g.gain.setValueAtTime(0.0001, startAt);
+        g.gain.linearRampToValueAtTime(peak, startAt + 0.025);
+        g.gain.setValueAtTime(peak, startAt + sustain * 0.65);
+        g.gain.linearRampToValueAtTime(0.0001, startAt + sustain);
+        o1.connect(filt); o2.connect(filt); filt.connect(g); g.connect(output);
+        o1.start(startAt); o2.start(startAt);
+        o1.stop(startAt + sustain + 0.25); o2.stop(startAt + sustain + 0.25);
+        sources.push(o1, o2);
+
+    } else if (inst === 'violin') {
+        const sustain = Math.max(0.3, durSec * 1.25);
+        const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = freq;
+        const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = freq * 1.006;
+        const filt = ctx.createBiquadFilter(); filt.type = 'lowpass';
+        filt.frequency.setValueAtTime(420, startAt);
+        filt.frequency.linearRampToValueAtTime(1050, startAt + Math.min(0.3, sustain * 0.3));
+        filt.frequency.linearRampToValueAtTime(480, startAt + sustain);
+        const g = ctx.createGain();
+        const peak = vol * 0.17;
+        g.gain.setValueAtTime(0.0001, startAt);
+        g.gain.linearRampToValueAtTime(peak, startAt + sustain * 0.2);
+        g.gain.linearRampToValueAtTime(peak * 0.85, startAt + sustain * 0.75);
+        g.gain.exponentialRampToValueAtTime(0.0001, startAt + sustain + 0.35);
+        o1.connect(filt); o2.connect(filt); filt.connect(g); g.connect(output);
+        o1.start(startAt); o2.start(startAt);
+        o1.stop(startAt + sustain + 0.5); o2.stop(startAt + sustain + 0.5);
+        sources.push(o1, o2);
+
+    } else if (inst === 'realpiano') {
+        /* Реалистичное пианино: лёгкая "нечистота" партиалов (как у настоящих
+           струн — inharmonicity), двойная струна с микро-расстройкой (юнисон),
+           долгий резонансный хвост и мягкий, но отчётливый удар молоточка. */
+        const B = 0.00018; // коэффициент негармоничности (типичен для пианинных струн)
+        const harmonics  = [1, 2, 3, 4, 5, 6, 7, 8];
+        const amps       = [1, 0.62, 0.38, 0.22, 0.14, 0.09, 0.05, 0.03];
+        const decayMul   = [1.0, 0.80, 0.62, 0.50, 0.40, 0.32, 0.26, 0.20];
+        const sustain = Math.max(0.6, durSec * 1.6) + (freq < 200 ? 1.2 : 0.3);
+        const noteGain = ctx.createGain(); noteGain.gain.value = 1;
+        const detunes = [1, 1.0017]; // юнисон-струны, чуть расстроенные друг от друга
+
+        const detuneWeightSum = detunes.reduce((s, _, di) => s + (di === 0 ? 1.0 : 0.85), 0) / detunes.length;
+        const harmonicSum = amps.reduce((s, a) => s + a, 0) * detuneWeightSum;
+        const peak = vol * 0.34 / harmonicSum;
+
+        harmonics.forEach((h, i) => {
+            const inharmonicFreq = freq * h * Math.sqrt(1 + B * h * h);
+            detunes.forEach((d, di) => {
+                const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = inharmonicFreq * d;
+                const g = ctx.createGain();
+                const decay = sustain * decayMul[i] + 0.15;
+                const stringAmp = (amps[i] / detunes.length) * (di === 0 ? 1.0 : 0.85);
+                g.gain.setValueAtTime(0.0001, startAt);
+                g.gain.linearRampToValueAtTime(peak * stringAmp, startAt + 0.004);
+                g.gain.exponentialRampToValueAtTime(0.0001, startAt + decay);
+                o.connect(g); g.connect(noteGain);
+                o.start(startAt); o.stop(startAt + decay + 0.3);
+                sources.push(o);
+            });
+        });
+
+        /* Резкий, но короткий удар молоточка по струне — фильтрованный шум. */
+        const hammerDur = 0.012;
+        const hLen = Math.max(1, Math.floor(ctx.sampleRate * hammerDur));
+        const hBuf = ctx.createBuffer(1, hLen, ctx.sampleRate);
+        const hData = hBuf.getChannelData(0);
+        for (let i = 0; i < hLen; i++) hData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / hLen, 2);
+        const hammer = ctx.createBufferSource(); hammer.buffer = hBuf;
+        const hammerFilt = ctx.createBiquadFilter(); hammerFilt.type = 'bandpass';
+        hammerFilt.frequency.value = Math.min(5000, freq * 4); hammerFilt.Q.value = 0.9;
+        const hammerGain = ctx.createGain(); hammerGain.gain.value = vol * 0.22;
+        hammer.connect(hammerFilt); hammerFilt.connect(hammerGain); hammerGain.connect(noteGain);
+        hammer.start(startAt);
+        sources.push(hammer);
+
+        /* Едва слышимый низкочастотный "корпус" рояля для тела звука. */
+        const bodyFilt = ctx.createBiquadFilter(); bodyFilt.type = 'lowpass'; bodyFilt.frequency.value = 900;
+        noteGain.connect(bodyFilt);
+        bodyFilt.connect(output);
+
+    } else if (inst === 'drum') {
+        /* Барабан: низкочастотный "бочка" удар (питч-свип вниз) +
+           шумовой щелчок для атаки — без привязки к точной ноте,
+           но с лёгким смещением тона в зависимости от выбранной клавиши,
+           чтобы разные клавиши звучали как разные элементы установки. */
+        const pitchBase = Math.max(50, Math.min(180, freq * 0.35));
+        const punchDur = Math.max(0.18, Math.min(0.5, durSec));
+
+        const osc = ctx.createOscillator(); osc.type = 'sine';
+        osc.frequency.setValueAtTime(pitchBase * 3.2, startAt);
+        osc.frequency.exponentialRampToValueAtTime(pitchBase * 0.55, startAt + punchDur * 0.85);
+        const oGain = ctx.createGain();
+        const peak = vol * 0.5;
+        oGain.gain.setValueAtTime(0.0001, startAt);
+        oGain.gain.linearRampToValueAtTime(peak, startAt + 0.003);
+        oGain.gain.exponentialRampToValueAtTime(0.0001, startAt + punchDur);
+        osc.connect(oGain); oGain.connect(output);
+        osc.start(startAt); osc.stop(startAt + punchDur + 0.05);
+        sources.push(osc);
+
+        /* шумовой щелчок-атака (как обечайка/щёлк барабанной палки) */
+        const clickDur = 0.05;
+        const cLen = Math.max(1, Math.floor(ctx.sampleRate * clickDur));
+        const cBuf = ctx.createBuffer(1, cLen, ctx.sampleRate);
+        const cData = cBuf.getChannelData(0);
+        for (let i = 0; i < cLen; i++) cData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / cLen, 1.5);
+        const click = ctx.createBufferSource(); click.buffer = cBuf;
+        const clickFilt = ctx.createBiquadFilter(); clickFilt.type = 'highpass'; clickFilt.frequency.value = 1800;
+        const clickGain = ctx.createGain(); clickGain.gain.value = vol * 0.18;
+        click.connect(clickFilt); clickFilt.connect(clickGain); clickGain.connect(output);
+        click.start(startAt);
+        sources.push(click);
+
+        /* короткий низкочастотный "корпус" резонанс для объёма */
+        const bodyDur = Math.max(0.12, punchDur * 0.6);
+        const bLen = Math.max(1, Math.floor(ctx.sampleRate * bodyDur));
+        const bBuf = ctx.createBuffer(1, bLen, ctx.sampleRate);
+        const bData = bBuf.getChannelData(0);
+        for (let i = 0; i < bLen; i++) bData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bLen, 3);
+        const bodyNoise = ctx.createBufferSource(); bodyNoise.buffer = bBuf;
+        const bodyFilt = ctx.createBiquadFilter(); bodyFilt.type = 'lowpass'; bodyFilt.frequency.value = 220;
+        const bodyGain = ctx.createGain(); bodyGain.gain.value = vol * 0.26;
+        bodyNoise.connect(bodyFilt); bodyFilt.connect(bodyGain); bodyGain.connect(output);
+        bodyNoise.start(startAt);
+        sources.push(bodyNoise);
+
+    } else { // piano (он же "Guitar" в интерфейсе) — аддитивный синтез: несколько гармоник + "удар молоточка"
+        const harmonics = [1, 2.0, 3.01, 4.02, 5.04, 6.1];
+        const amps      = [1, 0.55, 0.30, 0.17, 0.10, 0.05];
+        const decayMul  = [1.0, 0.62, 0.45, 0.32, 0.24, 0.16];
+        const sustain = Math.max(0.35, durSec * 1.05);
+        const harmonicSum = amps.reduce((s, a) => s + a, 0);
+        const peak = vol * 0.34 / harmonicSum;
+        const noteGain = ctx.createGain(); noteGain.gain.value = 1;
+        harmonics.forEach((h, i) => {
+            const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq * h;
+            const g = ctx.createGain();
+            const decay = sustain * decayMul[i] + 0.08;
+            g.gain.setValueAtTime(0.0001, startAt);
+            g.gain.linearRampToValueAtTime(peak * amps[i], startAt + 0.005);
+            g.gain.exponentialRampToValueAtTime(0.0001, startAt + decay);
+            o.connect(g); g.connect(noteGain);
+            o.start(startAt); o.stop(startAt + decay + 0.2);
+            sources.push(o);
+        });
+        /* короткий шумовой "удар молоточка" для атаки звука */
+        const noiseDur = 0.015;
+        const len = Math.max(1, Math.floor(ctx.sampleRate * noiseDur));
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        const noise = ctx.createBufferSource(); noise.buffer = buf;
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2200;
+        const ng = ctx.createGain(); ng.gain.value = vol * 0.15;
+        noise.connect(hp); hp.connect(ng); ng.connect(noteGain);
+        noise.start(startAt);
+        sources.push(noise);
+
+        noteGain.connect(output);
+    }
+
+    return { output, sources };
+}
+
+function scheduleNoteOnBus(ctx, bus, note, startAt) {
+    const baseFreq = noteFrequencies[note.note];
+    if (!baseFreq) return [];
+    const octave = note.octave !== undefined ? note.octave : 0;
+    const freq = baseFreq * Math.pow(2, octave);
+    const durSec = note.durationSeconds || 0.4;
+    const vol = (note.volumeFactor !== undefined ? note.volumeFactor : 1) * (bus.masterVolume !== undefined ? bus.masterVolume : 1);
+    const inst = note.instrument || 'realpiano';
+
+    const { output, sources } = buildInstrumentNodes(ctx, inst, freq, startAt, durSec, vol);
+    output.connect(bus.dry);
+
+    let send = null;
+    if (note.echo && note.echo !== 'none' && bus.echo[note.echo]) {
+        send = ctx.createGain();
+        send.gain.value = 0.55;
+        output.connect(send);
+        send.connect(bus.echo[note.echo]);
+    }
+
+    /* ГЛАВНЫЙ БАГ-ФИКС: раньше узлы отыгравшей ноты навсегда оставались
+       подключены к графу. На треке из сотен нот граф непрерывно рос —
+       к концу 800-900-нотного трека движок был вынужден тянуть тысячи
+       "мёртвых", но всё ещё подключённых узлов на КАЖДЫЙ аудио-квант,
+       что и вызывает треск/заикания именно по мере того, как трек
+       проигрывает всё больше нот ("много нот проиграло — потом звук
+       ломается"). В pull-модели Web Audio достаточно отключить верхний
+       узел этой ноты (output и его эхо-отвод) — всё, что питает только
+       его, автоматически выпадает из активного графа обработки, раз
+       до него больше "никому нет дела". Цепляемся к onended реальных
+       осцилляторов/буферов — это сэмпл-точный момент, без гадания на
+       глаз, когда нота правда закончила звучать. */
+    const outputEntry = { output, send };
+    activeOutputs.push(outputEntry);
+
+    /* ВТОРОЙ БАГ-ФИКС (звук был "обрезанным" у piano/realpiano/drum):
+       у этих инструментов источники РАЗНОЙ длительности — короткий
+       шумовой "удар" атаки (молоточек, щелчок — десятки мс) играет
+       рядом с гораздо более долгими тональными осцилляторами
+       (резонансный хвост — сотни мс / секунды). Раньше disconnect()
+       срабатывал на onended ПЕРВОГО же завершившегося источника — а
+       это почти всегда был короткий шумовой "удар", который не имеет
+       отношения к телу звука. В результате он обрубал output ещё до
+       того, как длинные гармоники успевали реально отзвучать: атака
+       была слышна, а резонансный хвост — нет. Теперь ждём, пока
+       ЗАВЕРШАТСЯ ВСЕ источники ноты (через счётчик), и только тогда
+       отключаем выход — звук всегда доигрывает целиком. */
+    let remaining = sources.length;
+    const cleanupOutput = () => {
+        remaining--;
+        if (remaining > 0) return; // ждём остальные источники этой же ноты
+        try { output.disconnect(); } catch (e) {}
+        if (send) { try { send.disconnect(); } catch (e) {} }
+        /* самоочистка: как только ВСЕ узлы ноты естественно закончили
+           звучать, убираем их из обоих списков, чтобы те не росли
+           бесконечно при долгой игре/большом треке. */
+        sources.forEach(s => {
+            const idx = activeSources.indexOf(s);
+            if (idx !== -1) activeSources.splice(idx, 1);
+        });
+        const oi = activeOutputs.indexOf(outputEntry);
+        if (oi !== -1) activeOutputs.splice(oi, 1);
+    };
+    sources.forEach(s => { if ('onended' in s) s.onended = cleanupOutput; });
+
+    return sources;
+}
+
+function stopAllMusic() {
+    activeSources.forEach(s => { try { s.stop(0); } catch (e) {} });
+    activeSources = [];
+    /* Та же очистка графа, что и при естественном завершении ноты —
+       но немедленно, для нот, которые пользователь остановил раньше
+       срока (иначе их узлы остались бы подключены навсегда). */
+    activeOutputs.forEach(({ output, send }) => {
+        try { output.disconnect(); } catch (e) {}
+        if (send) { try { send.disconnect(); } catch (e) {} }
+    });
+    activeOutputs = [];
+    scheduledTimeouts.forEach(id => clearTimeout(id));
+    scheduledTimeouts = [];
+    particles = [];
+    if (ctx2d && canvas) ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('status') && aiSay('stopped');
+}
+
+/* Однократная нота (клик по клавише) — играет немедленно, сэмпл-точно. */
+function playNote(noteName, durationSec = 0.6, instrument = null, forcedOctave = null, echoMode = null, volumeFactor = 1.0, particleColor = null) {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    liveBus.masterVolume = currentVolume;
+    const note = {
+        note: noteName,
+        durationSeconds: durationSec,
+        instrument: instrument || currentInstrument,
+        octave: forcedOctave !== null ? forcedOctave : currentOctave,
+        echo: echoMode !== null ? echoMode : currentEcho,
+        volumeFactor: volumeFactor
+    };
+    const startAt = ctx.currentTime + 0.005;
+    const nodes = scheduleNoteOnBus(ctx, liveBus, note, startAt);
+    activeSources.push(...nodes);
+    triggerAnimation(noteName, particleColor || moodProfiles[currentStyles[0]].color);
+}
+
+/* Воспроизведение всего паттерна — все ноты планируются заранее на
+   точной аудио-шкале времени AudioContext, без setTimeout-джиттера,
+   поэтому звук не "лагает" и не рассыпается на длинных треках. */
+function playMelody(mel) {
+    if (!mel || mel.length === 0) {
+        aiSay('empty');
+        return;
+    }
+    stopAllMusic();
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    liveBus.masterVolume = currentVolume;
+
+    /* БАГ-ФИКС: раньше здесь все ноты планировались ОДНИМ синхронным
+       проходом — для большой мелодии (особенно если собрано несколько
+       ИИ-генераций подряд) создание сотен/тысяч аудио-узлов могло
+       занять заметное время. Пока шёл этот проход, реальное время
+       (ctx.currentTime) продолжало идти вперёд — и к моменту, когда
+       очередь доходила до очередной ноты, её "момент старта" мог уже
+       оказаться в прошлом. У осциллятора это не ошибка (он просто
+       стартует "немедленно"), но его огибающая громкости была
+       рассчитана на момент, который уже прошёл, — то есть к моменту
+       реального звучания она уже успевала затухнуть до нуля. Звук
+       пропадал, хотя визуальная анимация (которая планируется через
+       обычный setTimeout, а не через аудио-движок) всё равно срабатывала
+       по расписанию — отсюда и "вижу, что нота нажимается, а звука нет".
+
+       Решение — планировать ноты не все сразу, а порциями "точно в
+       срок": на каждом тике создаются только узлы тех нот, что должны
+       прозвучать в ближайшие доли секунды. Тогда объём работы за один
+       тик не зависит от общего размера мелодии. */
+    const queue = mel.slice().sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+    const startAt = ctx.currentTime + 0.25;
+    let totalEnd = 0;
+    queue.forEach(n => { totalEnd = Math.max(totalEnd, n.startTimeOffsetSeconds + n.durationSeconds); });
+
+    const LOOKAHEAD_SEC = 0.4;  // насколько "вперёд" заранее создаём узлы
+    const TICK_MS        = 100; // как часто проверяем, что пора добавить ещё
+    let qi = 0;
+
+    function schedulerTick() {
+        const horizon = (ctx.currentTime - startAt) + LOOKAHEAD_SEC;
+        while (qi < queue.length && queue[qi].startTimeOffsetSeconds <= horizon) {
+            const n = queue[qi++];
+            const t = Math.max(ctx.currentTime + 0.004, startAt + n.startTimeOffsetSeconds);
+            const nodes = scheduleNoteOnBus(ctx, liveBus, n, t);
+            activeSources.push(...nodes);
+            const delayMs = Math.max(0, (t - ctx.currentTime)) * 1000;
+            const aId = setTimeout(() => triggerAnimation(n.note, n.moodColor || moodProfiles[currentStyles[0]].color), delayMs);
+            scheduledTimeouts.push(aId);
+        }
+        if (qi < queue.length) {
+            const tId = setTimeout(schedulerTick, TICK_MS);
+            scheduledTimeouts.push(tId);
+        }
+    }
+    schedulerTick();
+
+    aiSay('playStart', { opts: { silent: true } });
+
+    /* ИИ не молчит всё время трека — пока он играет, периодически
+       вставляет короткий комментарий, как живой слушатель рядом. */
+    if (totalEnd > 6) {
+        const commentCount = totalEnd > 20 ? 3 : (totalEnd > 10 ? 2 : 1);
+        for (let i = 1; i <= commentCount; i++) {
+            const frac = (i / (commentCount + 1)) + (Math.random() * 0.08 - 0.04);
+            const cId = setTimeout(() => {
+                aiSay('duringPlay', { opts: { silent: true } });
+            }, totalEnd * frac * 1000);
+            scheduledTimeouts.push(cId);
+        }
+    }
+
+    const endId = setTimeout(() => {
+        aiSay('playEnd');
+    }, (totalEnd + 0.4) * 1000);
+    scheduledTimeouts.push(endId);
+}
+
+/* ======================================================
+   AI HELPERS
+====================================================== */
+function pickRhythm(weights) {
+    const entries = Object.entries(weights);
+    const total   = entries.reduce((s, [, w]) => s + w, 0);
+    let r = Math.random() * total;
+    for (const [dur, w] of entries) {
+        r -= w;
+        if (r <= 0) return parseFloat(dur);
+    }
+    return parseFloat(entries[entries.length - 1][0]);
+}
+
+function pickNextNote(candidates, prevNote, melodyOctave) {
+    if (!prevNote || candidates.length <= 1) {
+        return candidates[Math.floor(Math.random() * candidates.length)];
+    }
+    const prevF = noteFrequencies[prevNote];
+    if (!prevF) return candidates[Math.floor(Math.random() * candidates.length)];
+    const prevEff = prevF * Math.pow(2, melodyOctave);
+
+    const weights = candidates.map(note => {
+        const f = noteFrequencies[note];
+        if (!f) return 1;
+        const eff  = f * Math.pow(2, melodyOctave);
+        const semi = Math.abs(12 * Math.log2(eff / prevEff));
+        if (semi < 0.1) return 3;
+        if (semi <= 2)  return 8;
+        if (semi <= 4)  return 4;
+        if (semi <= 7)  return 2;
+        return 1;
+    });
+
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < candidates.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return candidates[i];
+    }
+    return candidates[candidates.length - 1];
+}
+
+function getMoodNotes(style) {
+    const profile  = moodProfiles[style || currentStyles[0]];
+    const noteSet  = new Set();
+    profile.chordProgression.forEach(ch => ch.notes.forEach(n => noteSet.add(n)));
+    return Array.from(noteSet);
+}
+
+/* Если выбрано несколько настроений сразу — ИИ не просто берёт одно
+   из них, а собирает гибридный профиль: аккорды ОБОИХ стилей
+   объединяются в один пул (отсюда и "интересное" звучание смеси —
+   например, тревожные кластеры "Страшного" вперемешку с лидийскими
+   аккордами "Ностальгии"), а темп, плотность и прочие параметры
+   усредняются или берутся от одного из выбранных по очереди. */
+function buildBlendedProfile(styleKeys) {
+    const profiles = styleKeys.map(k => moodProfiles[k]);
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+    const combinedChords = [];
+    profiles.forEach(p => combinedChords.push(...p.chordProgression));
+
+    const avgBpm      = Math.round(profiles.reduce((s, p) => s + p.bpmBase, 0) / profiles.length);
+    const avgVariance = Math.round(profiles.reduce((s, p) => s + p.bpmVariance, 0) / profiles.length);
+    const basis = pick(profiles);
+
+    return {
+        label: styleKeys.map(k => moodProfiles[k].label).join(' + '),
+        description: 'Смешение настроений: ' + styleKeys.map(k => moodProfiles[k].label).join(' и '),
+        bpmLabel: basis.bpmLabel,
+        color: basis.color,
+        bpmBase: avgBpm, bpmVariance: avgVariance,
+        chordProgression: combinedChords,
+        rhythmWeights: pick(profiles).rhythmWeights,
+        harmonyDensity: profiles.reduce((s, p) => s + p.harmonyDensity, 0) / profiles.length,
+        melodyOctave: basis.melodyOctave, bassOctave: basis.bassOctave, harmonyOctave: basis.harmonyOctave,
+        echoMode: pick(profiles).echoMode,
+        instruments: { ...pick(profiles).instruments },
+        bellFreq: profiles.reduce((s, p) => s + (p.bellFreq || 0), 0) / profiles.length,
+        numCycles: Math.max(1, Math.round(profiles.reduce((s, p) => s + p.numCycles, 0) / profiles.length)),
+        /* диссонанс смеси не "всегда максимальный хаос", а с шансом —
+           иначе смесь со "Страшным" всегда превращалась бы в чистый хаос */
+        dissonant: profiles.some(p => p.dissonant) && Math.random() < 0.5,
+        useDrums: profiles.some(p => p.useDrums),
+        walkingBass: profiles.some(p => p.walkingBass),
+        swing: Math.max(0, ...profiles.map(p => p.swing || 0)),
+        endingStyle: pick(profiles).endingStyle,
+        skipBass: profiles.every(p => p.skipBass)
+    };
+}
+
+/* Единая точка получения "рабочего" профиля для генерации: учитывает
+   и смешение нескольких выбранных стилей, и инструмент, который
+   сейчас выбран пользователем — он становится ОСНОВНЫМ (бас+гармония)
+   во всех стилях, а не только в одном жёстко заданном звучании
+   (раньше эту роль всегда играло пианино). */
+function getEffectiveProfile() {
+    const base = currentStyles.length > 1
+        ? buildBlendedProfile(currentStyles)
+        : moodProfiles[currentStyles[0]];
+    return { ...base, instruments: { ...base.instruments, bass: currentInstrument, harmony: currentInstrument } };
+}
+
+function buildBassLayer(chord, t0, t1, beat, bpm, profile, out) {
+    const root  = chord.notes[0];
+    const fifth = chord.notes[Math.min(2, chord.notes.length - 1)];
+    const inst  = profile.instruments.bass || 'realpiano';
+    out.push({ note:root, duration:2, durationSeconds:beat*2.0,
+               startTimeOffsetSeconds:t0, instrument:inst, bpm,
+               octave:profile.bassOctave, echo:'none', volumeFactor:1.0 });
+    if (Math.random() > 0.3) {
+        out.push({ note:fifth, duration:2, durationSeconds:beat*1.9,
+                   startTimeOffsetSeconds:t0+beat*2, instrument:inst, bpm,
+                   octave:profile.bassOctave, echo:'none', volumeFactor:0.78 });
+    }
+}
+
+function buildHarmonyLayer(chord, t0, t1, beat, bpm, profile, out) {
+    const pool = chord.notes.slice(1);
+    if (pool.length === 0) return;
+    let t = t0;
+    const step = profile.harmonyDensity * beat;
+    while (t < t1 - 0.02) {
+        const note = pool[Math.floor(Math.random() * pool.length)];
+        out.push({ note, duration:profile.harmonyDensity,
+                   durationSeconds:step,
+                   startTimeOffsetSeconds:t, instrument:profile.instruments.harmony, bpm,
+                   octave:profile.harmonyOctave, echo:profile.echoMode, volumeFactor:0.5 });
+        t += step;
+    }
+}
+
+function buildMelodyLayer(chord, t0, t1, beat, bpm, profile, out, randomMode) {
+    let t = t0;
+    let prevNote = null;
+    while (t < t1 - 0.02) {
+        const dur    = pickRhythm(profile.rhythmWeights);
+        const durSec = dur * beat;
+        if (t + durSec > t1 + beat * 0.5) break;
+
+        let note, octave;
+        if (randomMode) {
+            note   = chord.notes[Math.floor(Math.random() * chord.notes.length)];
+            octave = Math.floor(Math.random() * 3) - 1;
+        } else {
+            note   = pickNextNote(chord.notes, prevNote, profile.melodyOctave);
+            octave = profile.melodyOctave;
+        }
+
+        const beatPos = (t - t0) / beat;
+        const isStrong = beatPos < 0.1 || Math.abs(beatPos - 2) < 0.1;
+        const vf = (isStrong ? 0.95 : 0.78) + (Math.random() * 0.08 - 0.04);
+
+        out.push({ note, duration:dur, durationSeconds:durSec,
+                   startTimeOffsetSeconds:t, instrument:profile.instruments.melody, bpm,
+                   octave, echo:profile.echoMode, volumeFactor:vf });
+        prevNote = note;
+        t += durSec;
+    }
+}
+
+function buildDecorationLayer(chord, t0, t1, beat, bpm, profile, out) {
+    if (!profile.bellFreq) return;
+    let t = t0 + beat * (0.5 + Math.random() * 1.5);
+    while (t < t1 - beat) {
+        if (Math.random() < profile.bellFreq) {
+            const note = chord.notes[Math.floor(Math.random() * chord.notes.length)];
+            out.push({ note, duration:1, durationSeconds:beat * 2.6,
+                       startTimeOffsetSeconds:t, instrument:profile.instruments.bell || 'bell', bpm,
+                       octave:1, echo:'space', volumeFactor:0.42 });
+        }
+        t += beat * (1 + Math.floor(Math.random() * 2));
+    }
+}
+
+function buildDrumLayer(chord, t0, t1, beat, bpm, profile, out) {
+    if (!profile.useDrums) return;
+    let t = t0;
+    let i = 0;
+    while (t < t1 - 0.02) {
+        /* "бочка" на сильную долю, более лёгкий удар на слабую — создаёт
+           узнаваемый ритмический пульс под аккордовой сеткой. */
+        const strong = i % 2 === 0;
+        out.push({ note: strong ? 'C3' : 'G3', duration: 0.5, durationSeconds: beat * 0.42,
+                   startTimeOffsetSeconds: t, instrument: 'drum', bpm,
+                   octave: -1, echo: 'none', volumeFactor: strong ? 1.0 : 0.62 });
+        t += beat;
+        i++;
+    }
+}
+
+/* ======================================================
+   ОКОНЧАНИЕ ТРЕКА — разное для каждого настроения, и ИИ
+   умеет "переписывать" уже сделанную концовку, если его
+   попросили продолжить трек дальше.
+====================================================== */
+function applyEnding(profile, newNotes, genBpm) {
+    if (newNotes.length === 0) return;
+    const style = profile.endingStyle || 'abrupt';
+    const sorted = [...newNotes].sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+    const tailCount = Math.min(sorted.length, style === 'ritardando' ? 8 : 6);
+    const tail = sorted.slice(-tailCount);
+
+    tail.forEach(n => {
+        n._orig = { volumeFactor: n.volumeFactor, durationSeconds: n.durationSeconds, bpm: n.bpm };
+        n.endingTag = true;
+    });
+
+    if (style === 'fade') {
+        tail.forEach((n, i) => {
+            const f = (i + 1) / tail.length;
+            n.volumeFactor = Math.max(0.04, n.volumeFactor * (1 - f * 0.85));
+            n.durationSeconds = n.durationSeconds * (1 + f * 0.5);
+        });
+    } else if (style === 'ritardando') {
+        let bpm = genBpm;
+        tail.forEach((n, i) => {
+            bpm = bpm - genBpm * 0.05;
+            const scale = genBpm / bpm;
+            n.durationSeconds = n.durationSeconds * scale;
+            n.bpm = Math.round(bpm);
+            n.volumeFactor = Math.max(0.15, n.volumeFactor * (1 - (i / tail.length) * 0.45));
+        });
+    } else if (style === 'sustain') {
+        const last = tail[tail.length - 1];
+        last.durationSeconds = last.durationSeconds * 2.4;
+        last.volumeFactor = Math.min(1.3, (last.volumeFactor || 1) * 1.3);
+    } else { // abrupt
+        const last = tail[tail.length - 1];
+        const beatSec = genBpm ? 60 / genBpm : 0.5;
+        last.durationSeconds = Math.min(last.durationSeconds, beatSec * 0.7);
+        last.volumeFactor = Math.min(1.2, (last.volumeFactor || 1) * 1.15);
+    }
+}
+
+function revertEnding() {
+    lastEndingNoteRefs.forEach(n => {
+        if (n._orig) {
+            n.volumeFactor    = n._orig.volumeFactor;
+            n.durationSeconds = n._orig.durationSeconds;
+            n.bpm              = n._orig.bpm;
+            delete n._orig;
+        }
+        delete n.endingTag;
+    });
+    lastEndingNoteRefs = [];
+}
+
+/* ======================================================
+   AI FULL CONTROL
+====================================================== */
+/* ИИ смотрит на ноты, которые сыграл пользователь, и сравнивает их
+   с "гармоническим словарём" каждого стиля — какой набор аккордов
+   чаще всего содержит именно эти ноты, тот стиль и ближе всего по
+   характеру к тому, что человек сыграл. */
+function detectStyleFromUserNotes(userNotes) {
+    const noteSet = new Set(userNotes.map(n => n.note));
+    let bestKey = currentStyles[0], bestScore = -1;
+    for (const [key, profile] of Object.entries(moodProfiles)) {
+        const poolSet = new Set();
+        profile.chordProgression.forEach(ch => ch.notes.forEach(n => poolSet.add(n)));
+        let overlap = 0;
+        noteSet.forEach(n => { if (poolSet.has(n)) overlap++; });
+        /* Нормализуем по размеру пула — иначе стиль с огромным
+           "всеядным" набором нот (например, хаотичный, где пул
+           покрывает все 12 хроматических тонов) всегда искусственно
+           выигрывал бы у более специфичных, тонально узких стилей,
+           даже если они на самом деле точнее совпадают по характеру. */
+        const score = overlap / Math.sqrt(Math.max(1, noteSet.size) * Math.max(1, poolSet.size));
+        if (score > bestScore) { bestScore = score; bestKey = key; }
+    }
+    return bestKey;
+}
+
+/* Добавляет бас и гармонию ПОД уже сыгранными нотами пользователя —
+   сама мелодия (то, что человек реально сыграл) не меняется ни на
+   ноту, только дополняется аккомпанементом в подобранном стиле и в
+   том же темпе, в котором это было записано. */
+function addHarmonySupportUnderUserNotes(userNotes, profile, out) {
+    if (userNotes.length === 0) return;
+    const bpm  = userNotes[0].bpm || profile.bpmBase;
+    const beat = 60 / bpm;
+    const userStart = Math.min(...userNotes.map(n => n.startTimeOffsetSeconds));
+    const userEnd   = Math.max(...userNotes.map(n => n.startTimeOffsetSeconds + n.durationSeconds));
+
+    let curTime = userStart;
+    let chordIdx = 0;
+    while (curTime < userEnd - 0.02) {
+        const chord = profile.chordProgression[chordIdx % profile.chordProgression.length];
+        const t0 = curTime, t1 = Math.min(userEnd + 0.01, curTime + 4 * beat);
+        if (!profile.skipBass) buildBassLayer(chord, t0, t1, beat, bpm, profile, out);
+        buildHarmonyLayer(chord, t0, t1, beat, bpm, profile, out);
+        curTime = t1;
+        chordIdx++;
+    }
+}
+
+/* ======================================================
+   AI FULL CONTROL
+====================================================== */
+function aiFullControl() {
+    /* Если пользователь что-то сыграл сам (записал с клавиатуры) и
+       ИИ это ещё не обрабатывал — сначала слушаем мелодию: смотрим,
+       на какой стиль она похожа, переключаемся на него, подбираем
+       бас и гармонию ПОД неё (сама мелодия не трогается), и только
+       потом продолжаем трек дальше уже в этом стиле. */
+    const userNotes = melody.filter(n => n.userPlayed && !n.aiProcessed);
+    const improvingUser = userNotes.length >= 3;
+
+    if (improvingUser) {
+        const detectedKey = detectStyleFromUserNotes(userNotes);
+        currentStyles = [detectedKey];
+        updateActiveButtons();
+    }
+
+    const profile = getEffectiveProfile();
+    aiSay(improvingUser ? 'aiListening' : 'aiThinking', { mood: profile.label, opts: { silent: true } });
+
+    setTimeout(() => {
+        /* Если у трека уже была концовка от прошлой генерации — снимаем
+           её эффект, чтобы продолжить ровно, без следов "обрыва". */
+        revertEnding();
+
+        if (improvingUser) {
+            const supportNotes = [];
+            addHarmonySupportUnderUserNotes(userNotes, profile, supportNotes);
+            supportNotes.forEach(n => n.moodColor = profile.color);
+            melody = melody.concat(supportNotes);
+            userNotes.forEach(n => { n.aiProcessed = true; n.moodColor = n.moodColor || profile.color; });
+            melody.sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+        }
+
+        let startOffset = 0;
+        melody.forEach(n => {
+            const end = n.startTimeOffsetSeconds + n.durationSeconds;
+            if (end > startOffset) startOffset = end;
+        });
+
+        const bpm     = profile.bpmBase + Math.round((Math.random() - 0.5) * profile.bpmVariance * 2);
+        const beat    = 60 / bpm;
+        const randomMode = !!profile.dissonant;
+
+        document.getElementById('tempoSlider').value = bpm;
+        document.getElementById('bpmValue').textContent = bpm;
+
+        const newNotes = [];
+        let curTime    = startOffset;
+
+        for (let cycle = 0; cycle < profile.numCycles; cycle++) {
+            for (const chord of profile.chordProgression) {
+                const chordBeats = 4;
+                const t0 = curTime;
+                const t1 = curTime + chordBeats * beat;
+
+                if (!profile.skipBass) buildBassLayer(chord, t0, t1, beat, bpm, profile, newNotes);
+                buildHarmonyLayer(chord, t0, t1, beat, bpm, profile, newNotes);
+                buildMelodyLayer(chord, t0, t1, beat, bpm, profile, newNotes, randomMode);
+                buildDecorationLayer(chord, t0, t1, beat, bpm, profile, newNotes);
+                buildDrumLayer(chord, t0, t1, beat, bpm, profile, newNotes);
+
+                curTime = t1;
+            }
+        }
+
+        newNotes.forEach(n => n.moodColor = profile.color);
+
+        /* ИИ ставит новую концовку именно в конец нового материала —
+           прошлая "видимая" концовка к этому моменту уже снята. */
+        applyEnding(profile, newNotes, bpm);
+        lastEndingNoteRefs = newNotes.filter(n => n.endingTag);
+
+        melody = melody.concat(newNotes);
+        melody.sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+
+        const chordLabels = profile.chordProgression.map(c => c.label).join(' - ');
+        document.getElementById('chordBadge').textContent = chordLabels;
+        updateMelodyDisplay();
+        if (improvingUser) {
+            aiSay('aiImprovedUser', { count: newNotes.length, mood: profile.label, bpm });
+        } else {
+            aiSay('aiDone', { count: newNotes.length, mood: profile.label, bpm });
+        }
+    }, 420);
+}
+
+/* ======================================================
+   MELODY DISPLAY
+====================================================== */
+function updateMelodyDisplay() {
+    const el = document.getElementById('melodyDisplay');
+    if (melody.length === 0) {
+        el.innerHTML = '<span style="color:var(--text-light)">Паттерн пуст...</span>';
+        return;
+    }
+    let html = '';
+    const instDisplayNames = { piano: 'GUITAR', realpiano: 'PIANO', bell: 'BELL', trumpet: 'TRUMPET', violin: 'VIOLIN', drum: 'DRUM' };
+    melody.forEach((item, i) => {
+        const inst    = instDisplayNames[item.instrument] || (item.instrument || 'guitar').toUpperCase();
+        const octInfo = item.octave !== undefined && item.octave !== 0
+            ? ` о${item.octave > 0 ? '+' : ''}${item.octave}` : '';
+        const durMap  = { 0.25:'1/16', 0.5:'1/8', 1:'1/4', 2:'1/2', 4:'Цел' };
+        const durInfo = durMap[item.duration] || item.duration;
+        const echoInfo = item.echo && item.echo !== 'none' ? ` fx:${item.echo}` : '';
+        const bpmInfo  = item.bpm ? ` ${item.bpm}bpm` : '';
+        const cls = item.endingTag ? 'note ending-note' : 'note';
+        html += `<span class="${cls}">${item.note}<span class="note-meta">[${inst}|${durInfo}${octInfo}${echoInfo}${bpmInfo}]</span></span>`;
+        if ((i + 1) % 5 === 0) html += '<br>';
+    });
+    el.innerHTML = html;
+    el.scrollTop = el.scrollHeight;
+}
+
+/* ======================================================
+   KEYBOARD
+====================================================== */
+function createKeyboard() {
+    const kb = document.getElementById('keyboard');
+    kb.innerHTML = '';
+    let lastNoteComment = 0;
+
+    const triggerKey = (key, k) => {
+        playNote(k.note, currentDuration * 0.6);
+        key.classList.add('playing');
+        setTimeout(() => key.classList.remove('playing'), 160);
+
+        if (isRecording) {
+            const bpm  = parseInt(document.getElementById('tempoSlider').value);
+            const beat = 60 / bpm;
+            /* БАГ-ФИКС: ищем максимальное время окончания среди ВСЕХ
+               нот, а не у последнего элемента массива — после
+               генерации ИИ ноты разных слоёв могут иметь разную
+               длительность, и "последняя по порядку" не всегда
+               заканчивается последней по факту. */
+            let last = 0;
+            melody.forEach(n => {
+                const end = n.startTimeOffsetSeconds + n.durationSeconds;
+                if (end > last) last = end;
+            });
+            melody.push({
+                note: k.note, duration: currentDuration,
+                durationSeconds: currentDuration * beat,
+                startTimeOffsetSeconds: last,
+                instrument: currentInstrument, bpm,
+                octave: currentOctave, echo: currentEcho, volumeFactor: 1.0,
+                userPlayed: true
+            });
+            updateMelodyDisplay();
+        }
+
+        /* ИИ изредка комментирует игру (не чаще раза в несколько секунд,
+           чтобы не превратиться в навязчивый спам при активной игре). */
+        const now = Date.now();
+        if (now - lastNoteComment > 4000) {
+            lastNoteComment = now;
+            aiSay('note', { instrument: currentInstrument, opts: { silent: true } });
+        }
+    };
+
+    pianoKeys.forEach(k => {
+        const key = document.createElement('div');
+        key.className = `key ${k.isBlack ? 'black' : ''}`;
+        key.dataset.note = k.note;
+        if (!k.isBlack) key.textContent = k.note;
+
+        /* pointerdown (не click) гарантирует, что несколько пальцев/нажатий
+           обрабатываются независимо и одновременно — звук не "ломается"
+           и не теряет ноты, когда зажато сразу несколько клавиш. */
+        key.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            triggerKey(key, k);
+        });
+
+        kb.appendChild(key);
+    });
+}
+
+/* ======================================================
+   MOOD GRID
+====================================================== */
+function buildMoodGrid() {
+    const grid = document.getElementById('moodGrid');
+    grid.innerHTML = '';
+    Object.entries(moodProfiles).forEach(([key, p]) => {
+        const btn = document.createElement('button');
+        btn.className = 'mood-btn' + (currentStyles.includes(key) ? ' mood-active' : '');
+        btn.dataset.mood = key;
+        btn.style.setProperty('--mc', p.color);
+        btn.innerHTML = `
+            <span class="mood-name">${p.label}</span>
+            <span class="mood-bpm">${p.bpmLabel}</span>
+            <span class="mood-desc">${p.description}</span>`;
+        btn.addEventListener('click', () => {
+            /* Мультивыбор: клик переключает стиль в наборе выбранных.
+               Можно выбрать сразу несколько — ИИ смешает их характеры
+               в один трек. Нельзя снять последний оставшийся выбор. */
+            const idx = currentStyles.indexOf(key);
+            if (idx !== -1) {
+                if (currentStyles.length > 1) currentStyles.splice(idx, 1);
+            } else {
+                currentStyles.push(key);
+            }
+            updateActiveButtons();
+            const prof = currentStyles.length > 1 ? buildBlendedProfile(currentStyles) : moodProfiles[currentStyles[0]];
+            document.getElementById('chordBadge').textContent =
+                prof.chordProgression.map(c => c.label).join(' - ');
+            if (currentStyles.length > 1) {
+                aiSay('moodChange', { mood: prof.label, desc: 'Смешиваю характеры этих настроений в одном треке.' });
+            } else {
+                aiSay('moodChange', { mood: prof.label, desc: prof.description });
+            }
+        });
+        grid.appendChild(btn);
+    });
+}
+
+/* ======================================================
+   ACTIVE BUTTON SYNC
+====================================================== */
+function updateActiveButtons() {
+    document.querySelectorAll('#instrumentControls .inst-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.inst === currentInstrument));
+    document.querySelectorAll('#octaveControls .oct-btn').forEach(b =>
+        b.classList.toggle('active', parseInt(b.dataset.oct) === currentOctave));
+    document.querySelectorAll('#durationControls .dur-btn').forEach(b =>
+        b.classList.toggle('active', parseFloat(b.dataset.dur) === currentDuration));
+    document.querySelectorAll('#echoControls .echo-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.echo === currentEcho));
+    document.querySelectorAll('#moodGrid .mood-btn').forEach(b => {
+        b.classList.toggle('mood-active', currentStyles.includes(b.dataset.mood));
+    });
+}
+
+/* ======================================================
+   БИБЛИОТЕКА ТРЕКОВ — сохраняется в localStorage устройства,
+   переживает закрытие вкладки и перезагрузку браузера.
+====================================================== */
+function loadTracksFromStorage() {
+    try {
+        const raw = localStorage.getItem(TRACKS_STORAGE_KEY);
+        savedTracks = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        savedTracks = [];
+    }
+}
+
+function persistTracks() {
+    try {
+        localStorage.setItem(TRACKS_STORAGE_KEY, JSON.stringify(savedTracks));
+    } catch (e) {
+        alert('Не удалось сохранить трек в локальное хранилище браузера: ' + e.message);
+    }
+}
+
+function renderSavedTracks() {
+    const wrap = document.getElementById('savedTracksList');
+    if (savedTracks.length === 0) {
+        wrap.innerHTML = '<span class="empty-hint">Сохранённых треков пока нет.</span>';
+        return;
+    }
+    wrap.innerHTML = '';
+    savedTracks.forEach(tr => {
+        const row = document.createElement('div');
+        row.className = 'track-row';
+        const moodLabel = moodProfiles[tr.style] ? moodProfiles[tr.style].label : tr.style;
+        row.innerHTML = `<span class="track-name">${tr.name}</span><span class="track-meta">${tr.melody.length} нот • ${moodLabel}</span>`;
+
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'mini-btn';
+        dlBtn.textContent = 'Скачать';
+        dlBtn.addEventListener('click', async () => {
+            const original = dlBtn.textContent;
+            dlBtn.disabled = true;
+            try {
+                dlBtn.textContent = '...';
+                aiSay('downloading', { opts: { silent: true } });
+                await renderAndDownload(tr.melody, tr.name, currentFormat, (s) => dlBtn.textContent = s === 'Сборка WAV...' ? 'WAV...' : 'MP3...');
+                aiSay('downloaded', { name: tr.name, format: currentFormat.toUpperCase() });
+            } catch (e) {
+                alert('Ошибка рендеринга: ' + e.message);
+            }
+            dlBtn.textContent = original; dlBtn.disabled = false;
+        });
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'mini-btn';
+        delBtn.textContent = 'Удалить';
+        delBtn.addEventListener('click', () => {
+            if (!confirm(`Удалить трек «${tr.name}» из библиотеки?`)) return;
+            savedTracks = savedTracks.filter(t => t.id !== tr.id);
+            persistTracks();
+            renderSavedTracks();
+        });
+
+        const actions = document.createElement('div');
+        actions.className = 'track-actions';
+        actions.appendChild(dlBtn);
+        actions.appendChild(delBtn);
+        row.appendChild(actions);
+        wrap.appendChild(row);
+    });
+}
+
+/* ======================================================
+   АУДИО-РЕНДЕР И СКАЧИВАНИЕ
+   Рендерит мелодию через тот же звуковой движок, что и живое
+   воспроизведение (OfflineAudioContext — темп и тембр совпадают),
+   затем кодирует результат в WAV (без потерь) или MP3 (320 кбит/с,
+   совместим с любым устройством и плеером).
+====================================================== */
+
+/* Рендерит мелодию в "сырой" стерео-буфер 44.1кГц через звуковой движок страницы. */
+async function renderMelodyToBuffer(mel, volume) {
+    let totalTime = 0.5;
+    mel.forEach(n => {
+        const end = n.startTimeOffsetSeconds + n.durationSeconds;
+        if (end > totalTime) totalTime = end;
+    });
+    totalTime += 3.0;
+
+    const sr  = 44100;
+    const off = new OfflineAudioContext(2, Math.ceil(totalTime * sr), sr);
+    const bus = buildBus(off);
+    bus.masterVolume = volume;
+
+    mel.forEach(n => {
+        const t = 0.12 + n.startTimeOffsetSeconds;
+        scheduleNoteOnBus(off, bus, n, t);
+    });
+
+    return await off.startRendering();
+}
+
+/* AudioBuffer -> WAV (16-bit PCM, без потерь качества). */
+function bufferToWavBlob(buf) {
+    const nCh = buf.numberOfChannels;
+    const len = buf.length * nCh * 2 + 44;
+    const ab  = new ArrayBuffer(len);
+    const dv  = new DataView(ab);
+    let pos = 0;
+    const u16 = v => { dv.setUint16(pos, v, true); pos += 2; };
+    const u32 = v => { dv.setUint32(pos, v, true); pos += 4; };
+    u32(0x46464952); u32(len-8);   u32(0x45564157);
+    u32(0x20746d66); u32(16);      u16(1); u16(nCh);
+    u32(buf.sampleRate); u32(buf.sampleRate * 2 * nCh); u16(nCh * 2); u16(16);
+    u32(0x61746164); u32(len - pos - 4);
+    const ch = [buf.getChannelData(0), buf.getChannelData(nCh > 1 ? 1 : 0)];
+    let off2 = 0;
+    while (pos < len) {
+        for (let i = 0; i < 2; i++) {
+            let s = Math.max(-1, Math.min(1, ch[i][off2]));
+            s = s < 0 ? s * 32768 : s * 32767;
+            dv.setInt16(pos, s, true); pos += 2;
+        }
+        off2++;
+    }
+    return new Blob([ab], { type: 'audio/wav' });
+}
+
+/* AudioBuffer -> MP3 (320 кбит/с через lamejs, кодирование прямо в браузере). */
+function bufferToMp3Blob(buf) {
+    if (typeof lamejs === 'undefined') {
+        throw new Error('Кодировщик MP3 не загрузился (нет соединения с интернетом). Используйте формат WAV.');
+    }
+    const sampleRate = buf.sampleRate;
+    const left  = buf.getChannelData(0);
+    const right = buf.numberOfChannels > 1 ? buf.getChannelData(1) : left;
+
+    const toInt16 = f32 => {
+        const out = new Int16Array(f32.length);
+        for (let i = 0; i < f32.length; i++) {
+            let s = Math.max(-1, Math.min(1, f32[i]));
+            out[i] = s < 0 ? s * 32768 : s * 32767;
+        }
+        return out;
+    };
+    const l16 = toInt16(left);
+    const r16 = toInt16(right);
+
+    const encoder = new lamejs.Mp3Encoder(2, sampleRate, 320);
+    const chunkSize = 1152;
+    const mp3Chunks = [];
+    for (let i = 0; i < l16.length; i += chunkSize) {
+        const lChunk = l16.subarray(i, i + chunkSize);
+        const rChunk = r16.subarray(i, i + chunkSize);
+        const mp3buf = encoder.encodeBuffer(lChunk, rChunk);
+        if (mp3buf.length > 0) mp3Chunks.push(mp3buf);
+    }
+    const end = encoder.flush();
+    if (end.length > 0) mp3Chunks.push(end);
+
+    return new Blob(mp3Chunks, { type: 'audio/mpeg' });
+}
+
+function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function sanitizeFilename(name) {
+    return (name || 'track').replace(/[\\/:*?"<>|]+/g, '').trim() || 'track';
+}
+
+/* Рендерит мелодию и сразу скачивает её на устройство в выбранном формате. */
+async function renderAndDownload(mel, name, format, onStatus) {
+    const buf = await renderMelodyToBuffer(mel, currentVolume);
+    const ext = format === 'mp3' ? 'mp3' : 'wav';
+    if (onStatus) onStatus(format === 'mp3' ? 'Кодирование в MP3...' : 'Сборка WAV...');
+    const blob = format === 'mp3' ? bufferToMp3Blob(buf) : bufferToWavBlob(buf);
+    triggerDownload(blob, `${sanitizeFilename(name)}.${ext}`);
+}
+
+async function exportCurrentTrack() {
+    if (melody.length === 0) { alert('Добавьте ноты для экспорта!'); return; }
+    const btn = document.getElementById('downloadBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    try {
+        btn.textContent = 'Рендеринг...';
+        await renderAndDownload(melody, 'asoa_ai_track', currentFormat, (s) => btn.textContent = s);
+    } catch (e) {
+        alert('Ошибка рендеринга: ' + e.message);
+    }
+    btn.textContent = original; btn.disabled = false;
+}
+
+/* ======================================================
+   INIT
+====================================================== */
+function init() {
+    initCanvas();
+    createKeyboard();
+    buildMoodGrid();
+    updateMelodyDisplay();
+    loadTracksFromStorage();
+    renderSavedTracks();
+    scheduleIdleQuestion(9000);
+
+    let isDark = false;
+    document.getElementById('themeBtn').addEventListener('click', () => {
+        isDark = !isDark;
+        document.body.classList.toggle('dark', isDark);
+        document.getElementById('themeBtn').textContent = isDark ? 'Светлая тема' : 'Тёмная тема';
+    });
+
+    document.querySelectorAll('#instrumentControls .inst-btn').forEach(btn =>
+        btn.addEventListener('click', () => {
+            currentInstrument = btn.dataset.inst;
+            updateActiveButtons();
+            aiSay('instrumentChange', { instrument: currentInstrument });
+        }));
+
+    document.querySelectorAll('#octaveControls .oct-btn').forEach(btn =>
+        btn.addEventListener('click', () => { currentOctave = parseInt(btn.dataset.oct); updateActiveButtons(); }));
+
+    document.querySelectorAll('#durationControls .dur-btn').forEach(btn =>
+        btn.addEventListener('click', () => { currentDuration = parseFloat(btn.dataset.dur); updateActiveButtons(); }));
+
+    document.querySelectorAll('#echoControls .echo-btn').forEach(btn =>
+        btn.addEventListener('click', () => { currentEcho = btn.dataset.echo; updateActiveButtons(); }));
+
+    const volSlider = document.getElementById('volumeSlider');
+    volSlider.addEventListener('input', () => {
+        currentVolume = parseFloat(volSlider.value);
+        document.getElementById('volumeValue').textContent = Math.round(currentVolume * 100) + '%';
+    });
+
+    document.getElementById('tempoSlider').addEventListener('input', e =>
+        document.getElementById('bpmValue').textContent = e.target.value);
+
+    const recBtn  = document.getElementById('recordBtn');
+    const stopRec = document.getElementById('stopRecordBtn');
+    recBtn.addEventListener('click', () => {
+        isRecording = true;
+        recBtn.classList.add('recording');
+        recBtn.textContent = 'Запись идёт...';
+        recBtn.disabled = true; stopRec.disabled = false;
+        aiSay('recording', { opts: { silent: true } });
+    });
+    stopRec.addEventListener('click', () => {
+        isRecording = false;
+        recBtn.classList.remove('recording');
+        recBtn.textContent = 'Начать запись';
+        recBtn.disabled = false; stopRec.disabled = true;
+        aiSay('recordDone');
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        melody = [];
+        lastEndingNoteRefs = [];
+        updateMelodyDisplay();
+        aiSay('cleared');
+    });
+
+    document.getElementById('randomBtn').addEventListener('click', () => {
+        melody = [];
+        lastEndingNoteRefs = [];
+        const bpm    = parseInt(document.getElementById('tempoSlider').value);
+        const beat   = 60 / bpm;
+        const notes  = getMoodNotes(currentStyles[0]);
+        for (let i = 0; i < 32; i++) {
+            melody.push({
+                note: notes[Math.floor(Math.random() * notes.length)],
+                duration: currentDuration,
+                durationSeconds: currentDuration * beat,
+                startTimeOffsetSeconds: i * currentDuration * beat,
+                instrument: currentInstrument, bpm,
+                octave: currentOctave, echo: currentEcho, volumeFactor: 1.0
+            });
+        }
+        updateMelodyDisplay();
+        aiSay('sketch');
+    });
+
+    document.querySelectorAll('#formatControls .fmt-btn').forEach(btn =>
+        btn.addEventListener('click', () => {
+            currentFormat = btn.dataset.fmt;
+            document.querySelectorAll('#formatControls .fmt-btn').forEach(b => b.classList.toggle('active', b === btn));
+        }));
+
+    document.getElementById('aiBtn').addEventListener('click', () => aiFullControl());
+    document.getElementById('playBtn').addEventListener('click', () => playMelody(melody));
+    document.getElementById('stopBtn').addEventListener('click', stopAllMusic);
+    document.getElementById('downloadBtn').addEventListener('click', exportCurrentTrack);
+
+    document.getElementById('saveTrackBtn').addEventListener('click', () => {
+        if (melody.length === 0) { alert('Нечего сохранять — паттерн пуст.'); return; }
+        const nameInput = document.getElementById('trackNameInput');
+        const name = nameInput.value.trim() || `Трек ${savedTracks.length + 1}`;
+        savedTracks.push({ id: Date.now(), name, melody: JSON.parse(JSON.stringify(melody)), style: currentStyles[0] });
+        persistTracks();
+        nameInput.value = '';
+        renderSavedTracks();
+        aiSay('saved', { name });
+    });
+
+    const initProfile = moodProfiles[currentStyles[0]];
+    document.getElementById('chordBadge').textContent =
+        initProfile.chordProgression.map(c => c.label).join(' - ');
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
