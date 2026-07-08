@@ -188,6 +188,20 @@
         }
         .btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
         .btn-accent:hover { opacity: 0.88; }
+        /* ═══ RENDER OVERLAY ═══ */
+        #renderOverlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);align-items:center;justify-content:center;}
+        #renderOverlay.active{display:flex;}
+        .ro-card{background:#13131a;border:1px solid #2a2a38;border-radius:22px;padding:36px 44px;width:min(460px,90vw);text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.7);}
+        .ro-title{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;color:#f0f4ff;margin-bottom:4px;}
+        .ro-phase{font-size:11.5px;color:#6b7280;margin-bottom:26px;min-height:18px;}
+        .ro-waves{display:flex;align-items:center;justify-content:center;gap:5px;height:52px;margin-bottom:26px;}
+        .ro-bar{width:4px;border-radius:3px;background:var(--accent);animation:roWave 1.1s ease-in-out infinite;}
+        .ro-bar:nth-child(1){height:10px;animation-delay:0s}.ro-bar:nth-child(2){height:18px;animation-delay:.1s}.ro-bar:nth-child(3){height:30px;animation-delay:.2s}.ro-bar:nth-child(4){height:42px;animation-delay:.3s}.ro-bar:nth-child(5){height:52px;animation-delay:.4s}.ro-bar:nth-child(6){height:42px;animation-delay:.5s}.ro-bar:nth-child(7){height:30px;animation-delay:.4s}.ro-bar:nth-child(8){height:18px;animation-delay:.3s}.ro-bar:nth-child(9){height:10px;animation-delay:.2s}
+        @keyframes roWave{0%,100%{transform:scaleY(.35);opacity:.4}50%{transform:scaleY(1);opacity:1}}
+        .ro-track{width:100%;height:6px;background:#252535;border-radius:3px;overflow:hidden;margin-bottom:10px;}
+        .ro-fill{height:100%;border-radius:3px;width:0%;background:linear-gradient(90deg,#14b8a6,#6ee7b7);transition:width .18s ease;}
+        .ro-meta{display:flex;justify-content:space-between;font-size:11px;color:#6b7280;}
+        .ro-pct{font-weight:700;color:var(--accent);font-size:13px;}
         .btn-danger { background: #ef4444; color: #fff; border-color: #ef4444; }
         .btn-danger:hover { background: #dc2626; }
         .recording { background: #ef4444 !important; color: #fff !important; border-color: #ef4444 !important; animation: pulse 1.4s infinite; }
@@ -1753,90 +1767,129 @@ function addHarmonySupportUnderUserNotes(userNotes, profile, out) {
 }
 
 /* ======================================================
-   AI FULL CONTROL
+   AI FULL CONTROL — три режима работы:
+
+   IMPROVE  — пользователь только что записал ноты, ИИ ещё
+              не обрабатывал. ИИ добавляет бас+гармонию ВОКРУГ
+              этих нот и ОСТАНАВЛИВАЕТСЯ — без продолжения.
+
+   BRIDGE   — пользователь дозаписал ещё ноты ПОСЛЕ первого
+              улучшения. ИИ улучшает новые ноты И строит
+              переход-«мост» между двумя частями.
+
+   STYLE    — нет новых записанных нот, но ИИ уже улучшал.
+              Генерирует продолжение В СТИЛЕ пользователя.
+
+   NORMAL   — обычная генерация без записанных нот.
 ====================================================== */
 function aiFullControl() {
-    /* Если пользователь что-то сыграл сам (записал с клавиатуры) и
-       ИИ это ещё не обрабатывал — сначала слушаем мелодию: смотрим,
-       на какой стиль она похожа, переключаемся на него, подбираем
-       бас и гармонию ПОД неё (сама мелодия не трогается), и только
-       потом продолжаем трек дальше уже в этом стиле. */
-    const userNotes = melody.filter(n => n.userPlayed && !n.aiProcessed);
-    const improvingUser = userNotes.length >= 3;
+    const allUser  = melody.filter(n => n.userPlayed);
+    const newUser  = melody.filter(n => n.userPlayed && !n.aiProcessed);
+    const wasImproved = allUser.some(n => n.aiProcessed);
+    const hasNew  = newUser.length >= 2;
 
-    if (improvingUser) {
-        const detectedKey = detectStyleFromUserNotes(userNotes);
-        currentStyles = [detectedKey];
+    let mode = 'normal';
+    if (hasNew && !wasImproved) mode = 'improve';
+    if (hasNew && wasImproved)  mode = 'bridge';
+    if (!hasNew && wasImproved) mode = 'style';
+
+    /* Определяем стиль — при наличии нот пользователя берём из них */
+    if (mode !== 'normal') {
+        const refNotes = hasNew ? newUser : allUser;
+        const detected = detectStyleFromUserNotes(refNotes);
+        currentStyles = [detected];
         updateActiveButtons();
     }
-
     const profile = getEffectiveProfile();
-    aiSay(improvingUser ? 'aiListening' : 'aiThinking', { mood: profile.label, opts: { silent: true } });
+
+    /* Реплика для каждого режима */
+    const phrases = {
+        improve: `Слушаю твою мелодию... похоже на «${profile.label}». Добавляю гармонию вокруг твоих нот — не продолжаю, только раскрываю.`,
+        bridge:  `Ты добавил ещё ноты. Улучшу их и построю переход, чтобы обе части звучали цельно.`,
+        style:   `Уловил твой стиль — «${profile.label}». Продолжаю трек в том же духе.`,
+        normal:  null
+    };
+    if (phrases[mode]) setStatus(phrases[mode], { silent: true });
+    else aiSay('aiThinking', { opts: { silent: true } });
 
     setTimeout(() => {
-        /* Если у трека уже была концовка от прошлой генерации — снимаем
-           её эффект, чтобы продолжить ровно, без следов "обрыва". */
         revertEnding();
 
-        if (improvingUser) {
-            const supportNotes = [];
-            addHarmonySupportUnderUserNotes(userNotes, profile, supportNotes);
-            supportNotes.forEach(n => n.moodColor = profile.color);
-            melody = melody.concat(supportNotes);
-            userNotes.forEach(n => { n.aiProcessed = true; n.moodColor = n.moodColor || profile.color; });
-            melody.sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+        /* ── IMPROVE: только улучшаем, не продолжаем ── */
+        if (mode === 'improve') {
+            const support = [];
+            addHarmonySupportUnderUserNotes(newUser, profile, support);
+            support.forEach(n => n.moodColor = profile.color);
+            newUser.forEach(n => { n.aiProcessed = true; n.moodColor = n.moodColor || profile.color; });
+            melody = melody.concat(support).sort((a,b)=>a.startTimeOffsetSeconds-b.startTimeOffsetSeconds);
+            document.getElementById('chordBadge').textContent = profile.chordProgression.map(c=>c.label).join(' - ');
+            updateMelodyDisplay();
+            setStatus(`Готово! Добавил гармонию вокруг твоих ${newUser.length} нот в стиле «${profile.label}». Нажми ▶ чтобы послушать.`);
+            return;
         }
 
+        /* ── BRIDGE: улучшаем новые + строим переход ── */
+        if (mode === 'bridge') {
+            const support = [];
+            addHarmonySupportUnderUserNotes(newUser, profile, support);
+            support.forEach(n => n.moodColor = profile.color);
+            newUser.forEach(n => { n.aiProcessed = true; n.moodColor = n.moodColor || profile.color; });
+            melody = melody.concat(support);
+
+            /* Строим переход если между частями есть пауза > 0.3 с */
+            const prevEnd  = Math.max(...allUser.filter(n=>n.aiProcessed&&newUser.indexOf(n)<0).map(n=>n.startTimeOffsetSeconds+n.durationSeconds), 0);
+            const newStart = Math.min(...newUser.map(n=>n.startTimeOffsetSeconds));
+            const gap = newStart - prevEnd;
+            if (gap > 0.3) {
+                const bpmB = profile.bpmBase, beatB = 60/bpmB;
+                const bridge = [];
+                let t = prevEnd + 0.05; let ci = 0;
+                while (t < newStart - 0.05) {
+                    const chord = profile.chordProgression[ci % profile.chordProgression.length];
+                    const t1 = Math.min(t + 2*beatB, newStart-0.05);
+                    buildHarmonyLayer(chord,t,t1,beatB,bpmB,profile,bridge);
+                    buildDecorationLayer(chord,t,t1,beatB,bpmB,profile,bridge);
+                    t = t1; ci++;
+                }
+                bridge.forEach(n=>{n.moodColor=profile.color;n.isBridge=true;});
+                melody = melody.concat(bridge);
+            }
+            melody.sort((a,b)=>a.startTimeOffsetSeconds-b.startTimeOffsetSeconds);
+            document.getElementById('chordBadge').textContent = profile.chordProgression.map(c=>c.label).join(' - ');
+            updateMelodyDisplay();
+            setStatus(`Улучшил новые ноты${gap>0.3?' и добавил переход между частями':''}. Слушаем?`);
+            return;
+        }
+
+        /* ── STYLE / NORMAL: генерация продолжения ── */
         let startOffset = 0;
-        melody.forEach(n => {
-            const end = n.startTimeOffsetSeconds + n.durationSeconds;
-            if (end > startOffset) startOffset = end;
-        });
+        melody.forEach(n=>{const e=n.startTimeOffsetSeconds+n.durationSeconds;if(e>startOffset)startOffset=e;});
 
-        const bpm     = profile.bpmBase + Math.round((Math.random() - 0.5) * profile.bpmVariance * 2);
-        const beat    = 60 / bpm;
-        const randomMode = !!profile.dissonant;
-
+        const bpm  = profile.bpmBase + Math.round((Math.random()-0.5)*profile.bpmVariance*2);
+        const beat = 60/bpm;
         document.getElementById('tempoSlider').value = bpm;
         document.getElementById('bpmValue').textContent = bpm;
 
-        const newNotes = [];
-        let curTime    = startOffset;
-
-        for (let cycle = 0; cycle < profile.numCycles; cycle++) {
+        const newNotes = []; let curTime = startOffset;
+        for (let cycle=0; cycle<profile.numCycles; cycle++) {
             for (const chord of profile.chordProgression) {
-                const chordBeats = 4;
-                const t0 = curTime;
-                const t1 = curTime + chordBeats * beat;
-
-                if (!profile.skipBass) buildBassLayer(chord, t0, t1, beat, bpm, profile, newNotes);
-                buildHarmonyLayer(chord, t0, t1, beat, bpm, profile, newNotes);
-                buildMelodyLayer(chord, t0, t1, beat, bpm, profile, newNotes, randomMode);
-                buildDecorationLayer(chord, t0, t1, beat, bpm, profile, newNotes);
-                buildDrumLayer(chord, t0, t1, beat, bpm, profile, newNotes);
-
+                const t0=curTime, t1=curTime+4*beat;
+                if (!profile.skipBass) buildBassLayer(chord,t0,t1,beat,bpm,profile,newNotes);
+                buildHarmonyLayer(chord,t0,t1,beat,bpm,profile,newNotes);
+                buildMelodyLayer(chord,t0,t1,beat,bpm,profile,newNotes,!!profile.dissonant);
+                buildDecorationLayer(chord,t0,t1,beat,bpm,profile,newNotes);
+                buildDrumLayer(chord,t0,t1,beat,bpm,profile,newNotes);
                 curTime = t1;
             }
         }
-
-        newNotes.forEach(n => n.moodColor = profile.color);
-
-        /* ИИ ставит новую концовку именно в конец нового материала —
-           прошлая "видимая" концовка к этому моменту уже снята. */
-        applyEnding(profile, newNotes, bpm);
-        lastEndingNoteRefs = newNotes.filter(n => n.endingTag);
-
-        melody = melody.concat(newNotes);
-        melody.sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
-
-        const chordLabels = profile.chordProgression.map(c => c.label).join(' - ');
-        document.getElementById('chordBadge').textContent = chordLabels;
+        newNotes.forEach(n=>n.moodColor=profile.color);
+        applyEnding(profile,newNotes,bpm);
+        lastEndingNoteRefs = newNotes.filter(n=>n.endingTag);
+        melody = melody.concat(newNotes).sort((a,b)=>a.startTimeOffsetSeconds-b.startTimeOffsetSeconds);
+        document.getElementById('chordBadge').textContent = profile.chordProgression.map(c=>c.label).join(' - ');
         updateMelodyDisplay();
-        if (improvingUser) {
-            aiSay('aiImprovedUser', { count: newNotes.length, mood: profile.label, bpm });
-        } else {
-            aiSay('aiDone', { count: newNotes.length, mood: profile.label, bpm });
-        }
+        if (mode==='style') setStatus(`Продолжил в твоём стиле «${profile.label}» — ${newNotes.length} нот, ${bpm} BPM. Нравится?`);
+        else aiSay('aiDone',{count:newNotes.length,mood:profile.label,bpm});
     }, 420);
 }
 
@@ -2025,17 +2078,13 @@ function renderSavedTracks() {
         dlBtn.className = 'mini-btn';
         dlBtn.textContent = 'Скачать';
         dlBtn.addEventListener('click', async () => {
-            const original = dlBtn.textContent;
             dlBtn.disabled = true;
             try {
-                dlBtn.textContent = '...';
                 aiSay('downloading', { opts: { silent: true } });
-                await renderAndDownload(tr.melody, tr.name, currentFormat, (s) => dlBtn.textContent = s === 'Сборка WAV...' ? 'WAV...' : 'MP3...');
+                await renderAndDownload(tr.melody, tr.name, currentFormat);
                 aiSay('downloaded', { name: tr.name, format: currentFormat.toUpperCase() });
-            } catch (e) {
-                alert('Ошибка рендеринга: ' + e.message);
-            }
-            dlBtn.textContent = original; dlBtn.disabled = false;
+            } catch (e) { alert('Ошибка рендеринга: ' + e.message); }
+            dlBtn.disabled = false;
         });
 
         const delBtn = document.createElement('button');
@@ -2065,26 +2114,67 @@ function renderSavedTracks() {
    совместим с любым устройством и плеером).
 ====================================================== */
 
-/* Рендерит мелодию в "сырой" стерео-буфер 44.1кГц через звуковой движок страницы. */
-async function renderMelodyToBuffer(mel, volume) {
+/* ── Управление оверлеем рендеринга ── */
+let _roT0 = 0;
+function roShow(sec) {
+    _roT0 = Date.now();
+    const o = document.getElementById('renderOverlay'); if(o) o.classList.add('active');
+    roUpd(0, sec, 'Подготовка...');
+}
+function roHide() { const o=document.getElementById('renderOverlay'); if(o) o.classList.remove('active'); }
+function roUpd(pct, sec, phase) {
+    const mm = s => Math.floor(s/60)+':'+(Math.floor(s)%60+'').padStart(2,'0');
+    const f=document.getElementById('roFill'); if(f) f.style.width=pct+'%';
+    const p=document.getElementById('roPct'); if(p) p.textContent=Math.round(pct)+'%';
+    const ph=document.getElementById('roPhase'); if(ph&&phase) ph.textContent=phase;
+    const el=document.getElementById('roElapsed'); if(el) el.textContent=mm((Date.now()-_roT0)/1000);
+    const tot=document.getElementById('roTotal'); if(tot&&sec) tot.textContent=mm(sec);
+}
+
+/* Chunked OfflineAudioContext-рендер:
+   Делим мелодию на временны́е окна (~15 с) и рендерим каждое
+   отдельным OfflineAudioContext. После каждого чанка браузер
+   перерисовывает прогресс-бар — как у Suno. Звук 100% совпадает
+   с живым воспроизведением, т.к. используется тот же синтез. */
+async function renderMelodyToBuffer(mel, volume, onProgress) {
+    const SR = 44100, CHUNK = 15, TAIL = 2.5;
+    const sorted = mel.slice().sort((a,b)=>a.startTimeOffsetSeconds-b.startTimeOffsetSeconds);
     let totalTime = 0.5;
-    mel.forEach(n => {
-        const end = n.startTimeOffsetSeconds + n.durationSeconds;
-        if (end > totalTime) totalTime = end;
-    });
-    totalTime += 3.0;
+    sorted.forEach(n=>{const e=n.startTimeOffsetSeconds+n.durationSeconds;if(e>totalTime)totalTime=e;});
+    totalTime += TAIL;
+    const totalSamples = Math.ceil(totalTime*SR);
+    const outL = new Float32Array(totalSamples);
+    const outR = new Float32Array(totalSamples);
+    const numChunks = Math.ceil(totalTime/CHUNK);
 
-    const sr  = 44100;
-    const off = new OfflineAudioContext(2, Math.ceil(totalTime * sr), sr);
-    const bus = buildBus(off);
-    bus.masterVolume = volume;
-
-    mel.forEach(n => {
-        const t = 0.12 + n.startTimeOffsetSeconds;
-        scheduleNoteOnBus(off, bus, n, t);
-    });
-
-    return await off.startRendering();
+    for (let ci=0; ci<numChunks; ci++) {
+        const ws = ci*CHUNK, we = (ci+1)*CHUNK;
+        const chunk = sorted.filter(n=>n.startTimeOffsetSeconds>=ws&&n.startTimeOffsetSeconds<we);
+        if (chunk.length>0) {
+            let cEnd = ws;
+            chunk.forEach(n=>{const e=n.startTimeOffsetSeconds+n.durationSeconds;if(e>cEnd)cEnd=e;});
+            cEnd += TAIL;
+            const cSamples = Math.ceil((cEnd-ws)*SR);
+            const off = new OfflineAudioContext(2, cSamples, SR);
+            const bus = buildBus(off);
+            bus.masterVolume = volume;
+            chunk.forEach(n=>scheduleNoteOnBus(off,bus,n,0.12+n.startTimeOffsetSeconds-ws));
+            const buf = await off.startRendering();
+            const L=buf.getChannelData(0), R=buf.numberOfChannels>1?buf.getChannelData(1):L;
+            const offset=Math.floor(ws*SR), copyLen=Math.min(L.length,totalSamples-offset);
+            for(let i=0;i<copyLen;i++){outL[offset+i]+=L[i];outR[offset+i]+=R[i];}
+        }
+        if(onProgress){
+            const pct=Math.round((ci+1)/numChunks*88);
+            onProgress(pct,totalTime,numChunks>1?`Рендеринг... (${ci+1}/${numChunks})`:'Рендеринг...');
+        }
+        await new Promise(r=>setTimeout(r,0));
+    }
+    /* Пиковая нормализация */
+    let peak=0;
+    for(let i=0;i<outL.length;i++) peak=Math.max(peak,Math.abs(outL[i]),Math.abs(outR[i]));
+    if(peak>0.92){const g=0.92/peak;for(let i=0;i<outL.length;i++){outL[i]*=g;outR[i]*=g;}}
+    return{length:totalSamples,numberOfChannels:2,sampleRate:SR,getChannelData:ch=>ch===0?outL:outR};
 }
 
 /* AudioBuffer -> WAV (16-bit PCM, без потерь качества). */
@@ -2160,26 +2250,31 @@ function sanitizeFilename(name) {
 }
 
 /* Рендерит мелодию и сразу скачивает её на устройство в выбранном формате. */
-async function renderAndDownload(mel, name, format, onStatus) {
-    const buf = await renderMelodyToBuffer(mel, currentVolume);
-    const ext = format === 'mp3' ? 'mp3' : 'wav';
-    if (onStatus) onStatus(format === 'mp3' ? 'Кодирование в MP3...' : 'Сборка WAV...');
-    const blob = format === 'mp3' ? bufferToMp3Blob(buf) : bufferToWavBlob(buf);
-    triggerDownload(blob, `${sanitizeFilename(name)}.${ext}`);
+async function renderAndDownload(mel, name, format) {
+    let trackSec=0;
+    mel.forEach(n=>{const e=n.startTimeOffsetSeconds+n.durationSeconds;if(e>trackSec)trackSec=e;});
+    roShow(trackSec);
+    try {
+        const buf = await renderMelodyToBuffer(mel, currentVolume, (pct,dur,phase)=>roUpd(pct,dur,phase));
+        roUpd(93,trackSec,format==='mp3'?'Кодирование MP3...':'Упаковка WAV...');
+        await new Promise(r=>setTimeout(r,0));
+        const ext=format==='mp3'?'mp3':'wav';
+        const blob=format==='mp3'?bufferToMp3Blob(buf):bufferToWavBlob(buf);
+        roUpd(100,trackSec,'Готово! ✓');
+        await new Promise(r=>setTimeout(r,500));
+        triggerDownload(blob,`${sanitizeFilename(name)}.${ext}`);
+    } finally { roHide(); }
 }
 
 async function exportCurrentTrack() {
-    if (melody.length === 0) { alert('Добавьте ноты для экспорта!'); return; }
-    const btn = document.getElementById('downloadBtn');
-    const original = btn.textContent;
-    btn.disabled = true;
+    if (melody.length===0){alert('Добавьте ноты для экспорта!');return;}
+    const btn=document.getElementById('downloadBtn');
+    btn.disabled=true;
     try {
-        btn.textContent = 'Рендеринг...';
-        await renderAndDownload(melody, 'asoa_ai_track', currentFormat, (s) => btn.textContent = s);
-    } catch (e) {
-        alert('Ошибка рендеринга: ' + e.message);
-    }
-    btn.textContent = original; btn.disabled = false;
+        await renderAndDownload(melody,'asoa_ai_track',currentFormat);
+        aiSay('downloaded',{name:'asoa_ai_track',format:currentFormat.toUpperCase()});
+    } catch(e){alert('Ошибка рендеринга: '+e.message);}
+    btn.disabled=false;
 }
 
 /* ======================================================
@@ -2299,5 +2394,6 @@ function init() {
 
 window.onload = init;
 </script>
+<div id="renderOverlay"><div class="ro-card"><div class="ro-title">Создаю аудиофайл</div><div class="ro-phase" id="roPhase">Подготовка...</div><div class="ro-waves"><div class="ro-bar"></div><div class="ro-bar"></div><div class="ro-bar"></div><div class="ro-bar"></div><div class="ro-bar"></div><div class="ro-bar"></div><div class="ro-bar"></div><div class="ro-bar"></div><div class="ro-bar"></div></div><div class="ro-track"><div class="ro-fill" id="roFill"></div></div><div class="ro-meta"><span id="roElapsed">0:00</span><span class="ro-pct" id="roPct">0%</span><span id="roTotal">—</span></div></div></div>
 </body>
 </html>
