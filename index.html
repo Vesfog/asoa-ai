@@ -838,39 +838,6 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
     .pr-grid-btn:nth-child(n+6) { display: none; }
 }
 
-/* ======================================================
-   V3.0 — АВТОСОХРАНЕНИЕ И ИСТОРИЯ ВЕРСИЙ
-====================================================== */
-.autosave-indicator {
-    font-size: 10px; color: var(--text-light); text-align: center;
-    padding: 4px 0 10px;
-}
-
-.history-modal-overlay {
-    position: fixed; inset: 0; z-index: 250; display: none;
-    align-items: center; justify-content: center;
-    background: rgba(10,10,14,0.5); backdrop-filter: blur(4px);
-    animation: fadeInUp 0.2s var(--ease-smooth);
-}
-.history-modal-overlay.open { display: flex; }
-.history-modal {
-    width: min(440px, 92vw); max-height: 78vh; display: flex; flex-direction: column;
-    background: var(--panel-bg); border: 1px solid var(--border); border-radius: 20px;
-    box-shadow: var(--shadow-strong); padding: 16px; gap: 12px;
-}
-.history-modal-header { display: flex; align-items: center; justify-content: space-between; }
-.history-modal-header h3 { font-size: 15px; font-weight: 700; }
-.history-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
-.history-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 9px 11px; border: 1px solid var(--border); border-radius: 12px;
-    background: var(--bg);
-}
-.history-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.history-row-label { font-size: 12px; font-weight: 600; }
-.history-row-date { font-size: 10px; color: var(--text-light); }
-.history-row .mini-btn { flex: 0 0 auto; }
-
 </style>
 </head>
 <body>
@@ -883,7 +850,7 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
             <div class="brand-mark">A</div>
             <div>
                 <h1>Asoa AI</h1>
-                <div class="brand-sub">Музыкальная студия будущего · V3.0</div>
+                <div class="brand-sub">Музыкальная студия будущего · V2.3</div>
             </div>
         </div>
         <div class="topbar-actions">
@@ -1159,30 +1126,7 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
         <div class="section-title">Сравнение</div>
         <button id="beforeAfterBtn">Показать: До</button>
     </div>
-
-    <div class="panel-section">
-        <div class="section-title">Гармонизация</div>
-        <div style="font-size:10.5px;color:var(--text-light);margin-bottom:8px;">Подберёт аккорды к выделенным нотам мелодии (или ко всей мелодии, если ничего не выделено в Piano Roll) и создаст слой «Гармония».</div>
-        <button id="harmonizeBtn" class="btn-accent">Гармонизовать выделенное</button>
-    </div>
-
-    <div class="panel-section">
-        <div class="section-title">История версий</div>
-        <div style="font-size:10.5px;color:var(--text-light);margin-bottom:8px;">Слепки состояния сохраняются автоматически при значимых действиях (генерация, правка, импорт).</div>
-        <button id="showHistoryBtn">Показать историю</button>
-    </div>
 </aside>
-
-<!-- V3.0: МОДАЛЬНОЕ ОКНО ИСТОРИИ ВЕРСИЙ -->
-<div class="history-modal-overlay" id="historyModalOverlay">
-    <div class="history-modal">
-        <div class="history-modal-header">
-            <h3>История версий</h3>
-            <button id="closeHistoryBtn" class="panel-close">Закрыть</button>
-        </div>
-        <div class="history-list" id="historyList"></div>
-    </div>
-</div>
 
 <!-- ПАНЕЛЬ: НАСТРОЙКИ -->
 <aside class="side-panel" id="panel-settings">
@@ -1279,13 +1223,6 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
             <input id="trackNameInput" type="text" class="text-input" placeholder="Название трека">
             <button id="saveTrackBtn">Сохранить</button>
         </div>
-        <div class="track-toolbar">
-            <button id="exportMidiBtn">Экспорт MIDI</button>
-            <button id="importMidiBtn">Импорт MIDI</button>
-            <input type="file" id="midiFileInput" accept=".mid,.midi" style="display:none;">
-        </div>
-        <div class="autosave-indicator" id="autosaveIndicator">Автосохранение: —</div>
-        <button id="restoreAutosaveBtn" style="display:none;margin-bottom:10px;">Восстановить автосохранение</button>
         <button id="restoreBackupBtn" style="display:none;margin-bottom:10px;">Восстановить версию до последней загрузки</button>
         <div id="savedTracksList"></div>
         <div style="font-size:10.5px;color:var(--text-light);margin-top:8px;line-height:1.5;">
@@ -1459,18 +1396,6 @@ let preEquipBackup   = null;       // резервная копия паттер
 let editVariants      = null;      // { A:[...], B:[...], C:[...] } — варианты после точечной правки
 let beforeSnapshot    = null;      // копия паттерна "до" правки — для сравнения До/После
 let showingBefore     = false;     // что сейчас показано пользователю — "до" или "после"
-
-/* ======================================================
-   V3.0 — АВТОСОХРАНЕНИЕ И ИСТОРИЯ ВЕРСИЙ
-   Отдельная система от Undo/Redo в Piano Roll (та — для точных
-   пошаговых правок нот; эта — крупные "слепки" состояния всего
-   проекта на значимых действиях + фоновое автосохранение).
-====================================================== */
-const AUTOSAVE_KEY = 'asoa_ai_autosave';
-const HISTORY_KEY  = 'asoa_ai_history';
-const HISTORY_MAX  = 20;
-let versionHistory = [];
-let autosaveTimerId = null;
 
 /* ====== V4.0: PIANO ROLL РЕДАКТОР ======
    Дорожки = существующие слои нот (бас/гармония/мелодия/украшения/
@@ -3959,7 +3884,6 @@ function aiFullControl() {
         updateMelodyDisplay();
         markDirty();
         if (typeof renderAnalysis === 'function') renderAnalysis();
-        if (typeof pushVersionSnapshot === 'function') pushVersionSnapshot('ИИ-генерация: ' + profile.label);
         if (mode==='style') setStatus(`Продолжил в твоём стиле «${profile.label}» — ${newNotes.length} нот, ${bpm} BPM. Нравится?`);
         else aiSay('aiDone',{count:newNotes.length,mood:profile.label,bpm});
     }, 420);
@@ -4529,287 +4453,20 @@ function sanitizeFilename(name) {
     return (name || 'track').replace(/[\\/:*?"<>|]+/g, '').trim() || 'track';
 }
 
-/* ======================================================
-   V3.0 — MIDI ЭКСПОРТ / ИМПОРТ (Standard MIDI File, Type 0)
-   Собственная минимальная реализация чтения/записи SMF — без
-   внешней библиотеки с CDN (надёжнее: не зависит от того,
-   загрузится ли сторонний скрипт).
-====================================================== */
-const MIDI_NOTE_BASE = { C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11 };
-const MIDI_NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-
-function noteNameToMidi(noteName, octaveShift) {
-    const m = /^([A-G]#?)(\d+)$/.exec(noteName || '');
-    if (!m) return 60;
-    const base = MIDI_NOTE_BASE[m[1]] !== undefined ? MIDI_NOTE_BASE[m[1]] : 0;
-    const oct = parseInt(m[2], 10) + (octaveShift || 0);
-    return Math.max(0, Math.min(127, base + (oct + 1) * 12));
-}
-function midiToNoteName(midiNote) {
-    const octave = Math.floor(midiNote / 12) - 1;
-    return MIDI_NOTE_NAMES[((midiNote % 12) + 12) % 12] + octave;
-}
-/* Наша библиотека нот покрывает только C3..C5 — переносим импортированную
-   ноту в этот диапазон октавами, сохраняя класс высоты (до/ре/ми...). */
-function clampMidiToSupportedRange(midiNote) {
-    while (midiNote < 48) midiNote += 12; // ниже C3
-    while (midiNote > 84) midiNote -= 12; // выше C5
-    return midiNote;
-}
-
-function encodeVarLen(value) {
-    const bytes = [value & 0x7f];
-    value >>>= 7;
-    while (value > 0) { bytes.unshift((value & 0x7f) | 0x80); value >>>= 7; }
-    return bytes;
-}
-function readVarLen(bytes, pos) {
-    let value = 0, byte;
-    do { byte = bytes[pos++]; value = (value << 7) | (byte & 0x7f); } while (byte & 0x80);
-    return { value, pos };
-}
-
-/* ------------------------------------------------------
-   ЭКСПОРТ: melody -> .mid (Type 0, один трек, темп + ноты)
------------------------------------------------------- */
-function exportMIDI(mel, bpm, name) {
-    if (!mel || mel.length === 0) { alert('Паттерн пуст — нечего экспортировать в MIDI.'); return; }
-    const PPQ = 480;
-    const ticksPerSecond = PPQ * bpm / 60;
-
-    const events = [];
-    mel.forEach(n => {
-        const midiNote = noteNameToMidi(n.note, n.octave);
-        const startTick = Math.max(0, Math.round(n.startTimeOffsetSeconds * ticksPerSecond));
-        const endTick = Math.max(startTick + 1, Math.round((n.startTimeOffsetSeconds + n.durationSeconds) * ticksPerSecond));
-        const velocity = Math.max(1, Math.min(127, Math.round((n.volumeFactor !== undefined ? n.volumeFactor : 0.8) * 100)));
-        events.push({ tick: startTick, type:'on', note: midiNote, velocity });
-        events.push({ tick: endTick, type:'off', note: midiNote });
-    });
-    events.sort((a, b) => a.tick - b.tick || (a.type === 'off' ? -1 : 1));
-
-    const trackBytes = [];
-    const microsPerQuarter = Math.round(60000000 / bpm);
-    trackBytes.push(...encodeVarLen(0), 0xFF, 0x51, 0x03, (microsPerQuarter>>16)&0xff, (microsPerQuarter>>8)&0xff, microsPerQuarter&0xff);
-    const nameBytes = Array.from((name || 'Asoa AI').slice(0, 100)).map(c => c.charCodeAt(0) & 0x7f);
-    trackBytes.push(...encodeVarLen(0), 0xFF, 0x03, nameBytes.length, ...nameBytes);
-
-    let lastTick = 0;
-    events.forEach(ev => {
-        trackBytes.push(...encodeVarLen(Math.max(0, ev.tick - lastTick)));
-        if (ev.type === 'on') trackBytes.push(0x90, ev.note, ev.velocity);
-        else trackBytes.push(0x80, ev.note, 0);
-        lastTick = ev.tick;
-    });
-    trackBytes.push(...encodeVarLen(0), 0xFF, 0x2F, 0x00);
-
-    const header = [0x4D,0x54,0x68,0x64, 0,0,0,6, 0,0, 0,1, (PPQ>>8)&0xff, PPQ&0xff];
-    const trackHeader = [0x4D,0x54,0x72,0x6B, (trackBytes.length>>>24)&0xff,(trackBytes.length>>>16)&0xff,(trackBytes.length>>>8)&0xff,trackBytes.length&0xff];
-    const allBytes = new Uint8Array([...header, ...trackHeader, ...trackBytes]);
-
-    triggerDownload(new Blob([allBytes], { type:'audio/midi' }), sanitizeFilename(name) + '.mid');
-}
-
-/* ------------------------------------------------------
-   ИМПОРТ: .mid файл -> массив нот в нашем формате
------------------------------------------------------- */
-function importMIDI(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const bytes = new Uint8Array(e.target.result);
-                let pos = 0;
-                const readStr = (len) => { let s=''; for (let i=0;i<len;i++) s += String.fromCharCode(bytes[pos++]); return s; };
-                const readU32 = () => { const v = (bytes[pos]<<24)|(bytes[pos+1]<<16)|(bytes[pos+2]<<8)|bytes[pos+3]; pos+=4; return v>>>0; };
-                const readU16 = () => { const v = (bytes[pos]<<8)|bytes[pos+1]; pos+=2; return v; };
-
-                if (readStr(4) !== 'MThd') throw new Error('Не похоже на MIDI-файл (нет заголовка MThd).');
-                const headerLen = readU32();
-                readU16(); // format — не важен для импорта нот
-                const numTracks = readU16();
-                const division = readU16();
-                pos += Math.max(0, headerLen - 6);
-                const ppq = (division & 0x8000) ? 480 : (division || 480);
-
-                const notes = [];
-                let microsPerQuarter = 500000; // 120 BPM по умолчанию, если в файле нет темпа
-
-                for (let t = 0; t < numTracks; t++) {
-                    if (readStr(4) !== 'MTrk') throw new Error('Повреждённый MIDI-файл (нет MTrk).');
-                    const trackLen = readU32();
-                    const trackEnd = pos + trackLen;
-                    let tick = 0, runningStatus = 0;
-                    const active = {};
-
-                    while (pos < trackEnd) {
-                        const vl = readVarLen(bytes, pos); pos = vl.pos; tick += vl.value;
-                        let statusByte = bytes[pos];
-                        if (statusByte < 0x80) { statusByte = runningStatus; } else { pos++; runningStatus = statusByte; }
-                        const type = statusByte & 0xF0;
-
-                        if (statusByte === 0xFF) {
-                            const metaType = bytes[pos++];
-                            const len = readVarLen(bytes, pos); pos = len.pos;
-                            if (metaType === 0x51) microsPerQuarter = (bytes[pos]<<16)|(bytes[pos+1]<<8)|bytes[pos+2];
-                            pos += len.value;
-                        } else if (statusByte === 0xF0 || statusByte === 0xF7) {
-                            const len = readVarLen(bytes, pos); pos = len.pos; pos += len.value;
-                        } else if (type === 0x90 || type === 0x80) {
-                            const note = bytes[pos++], vel = bytes[pos++];
-                            if (type === 0x90 && vel > 0) active[note] = { startTick: tick, velocity: vel };
-                            else { const a = active[note]; if (a) { notes.push({ note, startTick:a.startTick, endTick:tick, velocity:a.velocity }); delete active[note]; } }
-                        } else if (type === 0xC0 || type === 0xD0) { pos += 1; }
-                        else { pos += 2; }
-                    }
-                    pos = trackEnd;
-                }
-
-                const secPerTick = (microsPerQuarter / 1e6) / ppq;
-                const bpmFromFile = Math.max(40, Math.min(240, Math.round(60 / (microsPerQuarter / 1e6))));
-                const imported = notes.map(n => {
-                    const midi = clampMidiToSupportedRange(n.note);
-                    return {
-                        note: midiToNoteName(midi), duration: 1,
-                        durationSeconds: Math.max(0.05, (n.endTick - n.startTick) * secPerTick),
-                        startTimeOffsetSeconds: Math.max(0, n.startTick * secPerTick),
-                        instrument: 'piano', bpm: bpmFromFile, layer:'melody', octave:0, echo:'none',
-                        volumeFactor: Math.max(0.2, Math.min(1.3, n.velocity / 100)), userPlayed:true
-                    };
-                });
-                resolve(imported);
-            } catch (err) { reject(err); }
-        };
-        reader.onerror = () => reject(new Error('Не удалось прочитать файл.'));
-        reader.readAsArrayBuffer(file);
-    });
-}
-
 /* Рендерит мелодию и сразу скачивает её на устройство в выбранном формате. */
-/* ======================================================
-   V2.5 — ПОТОКОВЫЙ MP3-РЕНДЕР (чанк за чанком)
-   В отличие от renderMelodyToBuffer (который копит ВЕСЬ трек в
-   двух Float32Array перед кодированием — для 18-минутного трека
-   это сотни МБ и падение вкладки), здесь каждый ~15-секундный
-   чанк сразу кодируется в MP3 через lamejs и PCM тут же
-   выбрасывается. В памяти одновременно живёт только текущий
-   чанк (~3 МБ) + уже готовые mp3-байты (для 18 минут это
-   единицы-десятки МБ, а не сотни).
-
-   Хвосты нот (реверб/эхо) рендерятся с запасом TAIL секунд, чтобы
-   ноты возле границы чанка не обрывались резко — честно говоря,
-   при этом самый краешек долгого хвоста (реверб дольше ~2.5с у
-   границы чанка) может звучать чуть короче, чем в живом
-   воспроизведении. Это осознанный компромисс ради стабильной
-   памяти на длинных треках.
-====================================================== */
-async function renderMelodyStreamingMp3(mel, volume, onProgress) {
-    if (typeof lamejs === 'undefined' || !lamejs.Mp3Encoder) {
-        throw new Error('Кодировщик MP3 не загрузился (нет соединения с интернетом или скрипт заблокирован). Попробуйте формат WAV или обновите страницу.');
-    }
-    const SR = 44100, CHUNK = 15, TAIL = 2.5;
-    const sorted = mel.slice().sort((a,b)=>a.startTimeOffsetSeconds-b.startTimeOffsetSeconds);
-    let totalTime = 0.5;
-    sorted.forEach(n=>{const e=n.startTimeOffsetSeconds+n.durationSeconds;if(e>totalTime)totalTime=e;});
-    totalTime += TAIL;
-    const numChunks = Math.ceil(totalTime / CHUNK);
-
-    const encoder = new lamejs.Mp3Encoder(2, SR, 320);
-    const mp3Parts = [];
-    const ENC_BLOCK = 1152; // lamejs кодирует блоками фиксированного размера
-    let leftoverL = new Int16Array(0), leftoverR = new Int16Array(0);
-
-    const toInt16 = (f32, len) => {
-        const out = new Int16Array(len);
-        for (let i = 0; i < len; i++) { let s = Math.max(-1, Math.min(1, f32[i])); out[i] = s < 0 ? s * 32768 : s * 32767; }
-        return out;
-    };
-    /* Копим "хвост" не кратный 1152 сэмплам между чанками рендера,
-       чтобы кодировщик всегда получал ровные блоки. */
-    const encodeAndStore = (l16, r16) => {
-        const fullL = new Int16Array(leftoverL.length + l16.length);
-        const fullR = new Int16Array(leftoverR.length + r16.length);
-        fullL.set(leftoverL, 0); fullL.set(l16, leftoverL.length);
-        fullR.set(leftoverR, 0); fullR.set(r16, leftoverR.length);
-        const usableLen = Math.floor(fullL.length / ENC_BLOCK) * ENC_BLOCK;
-        for (let i = 0; i < usableLen; i += ENC_BLOCK) {
-            const mp3buf = encoder.encodeBuffer(fullL.subarray(i, i + ENC_BLOCK), fullR.subarray(i, i + ENC_BLOCK));
-            if (mp3buf.length > 0) mp3Parts.push(mp3buf);
-        }
-        leftoverL = fullL.slice(usableLen);
-        leftoverR = fullR.slice(usableLen);
-    };
-
-    for (let ci = 0; ci < numChunks; ci++) {
-        const ws = ci * CHUNK, we = Math.min(totalTime, (ci + 1) * CHUNK);
-        const isLast = ci === numChunks - 1;
-        const renderEnd = isLast ? we : we + TAIL; // запас на хвост нот у границы чанка
-        const chunkNotes = sorted.filter(n => n.startTimeOffsetSeconds >= ws && n.startTimeOffsetSeconds < we);
-
-        if (chunkNotes.length > 0 || isLast) {
-            const cSamples = Math.max(1, Math.ceil((renderEnd - ws) * SR));
-            const off = new OfflineAudioContext(2, cSamples, SR);
-            const bus = buildBus(off);
-            bus.masterVolume = volume;
-            chunkNotes.forEach(n => scheduleNoteOnBus(off, bus, n, n.startTimeOffsetSeconds - ws));
-            const buf = await off.startRendering();
-
-            // кодируем ровно [ws, we) — хвост за пределами использован только
-            // чтобы дать отзвучать нотам внутри ЭТОГО рендера, не обрезая их резко
-            const encodeSamples = isLast ? buf.length : Math.min(buf.length, Math.round((we - ws) * SR));
-            const L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L;
-            encodeAndStore(toInt16(L, encodeSamples), toInt16(R, encodeSamples));
-        }
-
-        if (onProgress) {
-            const pct = Math.round((ci + 1) / numChunks * 88);
-            onProgress(pct, totalTime, numChunks > 1 ? `Кодирование MP3... (${ci + 1}/${numChunks})` : 'Кодирование MP3...');
-        }
-        await new Promise(r => setTimeout(r, 0)); // отдаём кадр браузеру между чанками
-    }
-
-    if (leftoverL.length > 0) {
-        const mp3buf = encoder.encodeBuffer(leftoverL, leftoverR);
-        if (mp3buf.length > 0) mp3Parts.push(mp3buf);
-    }
-    const end = encoder.flush();
-    if (end.length > 0) mp3Parts.push(end);
-
-    return new Blob(mp3Parts, { type: 'audio/mpeg' });
-}
-
 async function renderAndDownload(mel, name, format) {
     let trackSec=0;
     mel.forEach(n=>{const e=n.startTimeOffsetSeconds+n.durationSeconds;if(e>trackSec)trackSec=e;});
-
-    /* V2.5: WAV хранит весь трек в памяти как несжатый PCM — для
-       длинных треков (>10 минут) это может занять сотни МБ и
-       подвесить вкладку. Предупреждаем и предлагаем MP3 (он теперь
-       рендерится потоково, без этой проблемы). */
-    if (format === 'wav' && trackSec > 600) {
-        const mins = (trackSec / 60).toFixed(1);
-        const proceed = confirm(`Трек длится ${mins} минут. Рендеринг в WAV может занять много памяти и привести к зависанию. Рекомендуется MP3. Продолжить?`);
-        if (!proceed) return;
-    }
-
     roShow(trackSec);
     try {
-        if (format === 'mp3') {
-            /* Потоковый путь: чанк -> сразу MP3-байты -> PCM выбрасывается.
-               Не копит весь трек в памяти — работает даже на 18+ минутах. */
-            const blob = await renderMelodyStreamingMp3(mel, currentVolume, (pct,dur,phase)=>roUpd(pct,dur,phase));
-            roUpd(100,trackSec,'Готово!');
-            await new Promise(r=>setTimeout(r,400));
-            triggerDownload(blob,`${sanitizeFilename(name)}.mp3`);
-        } else {
-            const buf = await renderMelodyToBuffer(mel, currentVolume, (pct,dur,phase)=>roUpd(pct,dur,phase));
-            roUpd(93,trackSec,'Упаковка WAV...');
-            await new Promise(r=>setTimeout(r,0));
-            const blob = bufferToWavBlob(buf);
-            roUpd(100,trackSec,'Готово!');
-            await new Promise(r=>setTimeout(r,400));
-            triggerDownload(blob,`${sanitizeFilename(name)}.wav`);
-        }
+        const buf = await renderMelodyToBuffer(mel, currentVolume, (pct,dur,phase)=>roUpd(pct,dur,phase));
+        roUpd(93,trackSec,format==='mp3'?'Кодирование MP3...':'Упаковка WAV...');
+        await new Promise(r=>setTimeout(r,0));
+        const ext=format==='mp3'?'mp3':'wav';
+        const blob=format==='mp3'?bufferToMp3Blob(buf):bufferToWavBlob(buf);
+        roUpd(100,trackSec,'Готово! ✓');
+        await new Promise(r=>setTimeout(r,500));
+        triggerDownload(blob,`${sanitizeFilename(name)}.${ext}`);
     } finally { roHide(); }
 }
 
@@ -5029,7 +4686,6 @@ function runEditFromPanel() {
     renderAnalysis();
     showingBefore = false;
     document.getElementById('beforeAfterBtn').textContent = 'Показать: До';
-    if (res.changed && typeof pushVersionSnapshot === 'function') pushVersionSnapshot('Точечная правка');
     setStatus(res.changed ? `Готово — изменил выбранные элементы (интенсивность ${Math.round(intensity*100)}%). Остальное не трогал.` : 'Изменения выбраны, но ничего не тронул — возможно, все выбранные элементы заблокированы.');
 }
 
@@ -5075,76 +4731,6 @@ function parseInstruction(text) {
 
     const understood = found.size > 0 || keepFound.size > 0;
     return { elements: found, keepElements: keepFound, intensityOverride, understood, anyDirection };
-}
-
-/* ======================================================
-   V3.0 — ГАРМОНИЗАЦИЯ МЕЛОДИИ
-   Подбирает аккорды к выделенным (или всем) нотам мелодии:
-   делит время на окна, в каждом находит самую частую ноту и
-   строит от неё трезвучие (мажор/минор — в зависимости от
-   настроения), создавая длинные ноты слоя "harmony".
-====================================================== */
-/* Минорные по характеру настроения — гармонизация мягче/темнее. */
-const MINOR_LEANING_MOODS = ['sad','calm','nostalgic','mysterious','scary','lullaby'];
-
-function harmonizeMelody(selectedNotes, profile) {
-    if (!selectedNotes || selectedNotes.length === 0) return [];
-    const style = currentStyles[0];
-    const minor = MINOR_LEANING_MOODS.includes(style);
-    const thirdInterval = minor ? 3 : 4; // малая/большая терция
-    const fifthInterval = 7;
-
-    const windowSec = 2.0;
-    let start = Math.min(...selectedNotes.map(n => n.startTimeOffsetSeconds));
-    let end = Math.max(...selectedNotes.map(n => n.startTimeOffsetSeconds + n.durationSeconds));
-    const bpm = (selectedNotes[0] && selectedNotes[0].bpm) || parseInt(document.getElementById('tempoSlider').value) || 110;
-    const harmonyInst = resolveInstrumentForLayer(style, 'harmony', melody);
-
-    const harmonyNotes = [];
-    for (let ws = start; ws < end; ws += windowSec) {
-        const we = Math.min(end, ws + windowSec);
-        const inWindow = selectedNotes.filter(n => n.startTimeOffsetSeconds >= ws && n.startTimeOffsetSeconds < we);
-        if (inWindow.length === 0) continue;
-
-        // самая частая нота (по имени, без учёта конкретной октавы) в этом окне
-        const counts = {};
-        inWindow.forEach(n => { const base = n.note.replace(/\d+$/, ''); counts[base] = (counts[base]||0) + 1; });
-        let rootName = inWindow[0].note.replace(/\d+$/, ''), bestCount = 0;
-        Object.entries(counts).forEach(([nm, c]) => { if (c > bestCount) { bestCount = c; rootName = nm; } });
-
-        const rootIdx = PR_PITCHES.findIndex(p => p.startsWith(rootName) && /\d/.test(p));
-        const baseIdx = PR_PITCHES.indexOf(rootName + '3') !== -1 ? PR_PITCHES.indexOf(rootName + '3') : (rootIdx !== -1 ? rootIdx : 12);
-
-        [0, thirdInterval, fifthInterval].forEach(interval => {
-            const idx = Math.max(0, Math.min(PR_PITCHES.length - 1, baseIdx + interval));
-            harmonyNotes.push({
-                note: PR_PITCHES[idx], duration: windowSec, durationSeconds: (we - ws) * 0.96,
-                startTimeOffsetSeconds: ws, instrument: harmonyInst, bpm, layer:'harmony',
-                octave:0, echo: (typeof moodProfiles!=='undefined' && moodProfiles[style]) ? moodProfiles[style].echoMode : 'none',
-                volumeFactor: 0.42, aiGenerated:true
-            });
-        });
-    }
-    return harmonyNotes;
-}
-
-function runHarmonize() {
-    let selected = (typeof prSelectedIds !== 'undefined' && prSelectedIds.size > 0)
-        ? melody.filter(n => prSelectedIds.has(n.id) && n.layer === 'melody')
-        : [];
-    if (selected.length === 0) selected = melody.filter(n => n.layer === 'melody');
-    if (selected.length === 0) { setStatus('Нет нот мелодии для гармонизации — сначала сыграй или сгенерируй что-нибудь.'); return; }
-
-    if (typeof pushHistory === 'function') pushHistory();
-    const harmonyNotes = harmonizeMelody(selected, getEffectiveProfile());
-    if (harmonyNotes.length === 0) { setStatus('Не удалось подобрать аккорды — попробуй выделить больше нот.'); return; }
-
-    melody = melody.concat(harmonyNotes).sort((a,b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
-    markDirty(); updateMelodyDisplay();
-    if (typeof renderAnalysis === 'function') renderAnalysis();
-    if (typeof renderPianoRoll === 'function') renderPianoRoll();
-    if (typeof pushVersionSnapshot === 'function') pushVersionSnapshot('Гармонизация');
-    setStatus(`Гармонизовал: добавил ${harmonyNotes.length} нот аккордов на основе ${selected.length} нот мелодии.`);
 }
 
 function runEditFromInstruction() {
@@ -5270,119 +4856,6 @@ function captureCurrentSettings() {
         globalInstrumentPreference
     };
 }
-
-/* ======================================================
-   V3.0 — ПОЛНЫЙ СЛЕПОК СОСТОЯНИЯ (для автосохранения и истории)
-   Помимо настроек проекта (captureCurrentSettings) включает то, что
-   обычные settings не хранят: кривую энергии и блокировки редактора.
-====================================================== */
-function captureFullState() {
-    return {
-        melody: JSON.parse(JSON.stringify(melody)),
-        settings: captureCurrentSettings(),
-        energyCurvePoints: (typeof energyCurve !== 'undefined') ? JSON.parse(JSON.stringify(energyCurve.points)) : null,
-        lockedElements: [...lockedElements],
-        trackName: (typeof currentTrackName !== 'undefined') ? currentTrackName : 'Без названия'
-    };
-}
-function applyFullState(state) {
-    if (!state) return;
-    melody = JSON.parse(JSON.stringify(state.melody || []));
-    applySettings(state.settings);
-    if (state.energyCurvePoints && typeof energyCurve !== 'undefined') {
-        energyCurve.points = JSON.parse(JSON.stringify(state.energyCurvePoints));
-        energyCurve.userEdited = true;
-        if (typeof renderEnergyCurve === 'function') renderEnergyCurve();
-    }
-    if (state.lockedElements) lockedElements = new Set(state.lockedElements);
-    if (state.trackName && typeof currentTrackName !== 'undefined') {
-        currentTrackName = state.trackName;
-        const el = document.getElementById('trackNameDisplay');
-        if (el) el.textContent = currentTrackName;
-    }
-    markDirty();
-    updateMelodyDisplay();
-    if (typeof renderAnalysis === 'function') renderAnalysis();
-    if (typeof renderPianoRoll === 'function') renderPianoRoll();
-}
-
-/* ------------------------------------------------------
-   АВТОСОХРАНЕНИЕ — раз в 30 секунд, тихо, без уведомлений.
------------------------------------------------------- */
-function autosaveNow() {
-    try {
-        if (melody.length === 0) return; // нечего сохранять
-        const payload = { timestamp: Date.now(), state: captureFullState() };
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
-        const ind = document.getElementById('autosaveIndicator');
-        if (ind) { ind.textContent = 'Автосохранение: сохранено ' + new Date(payload.timestamp).toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'}); }
-    } catch (e) { /* localStorage переполнен/недоступен — тихо игнорируем, это фон */ }
-}
-function startAutosaveTimer() {
-    if (autosaveTimerId) clearInterval(autosaveTimerId);
-    autosaveTimerId = setInterval(autosaveNow, 30000);
-}
-function checkAndOfferAutosaveRestore() {
-    let payload;
-    try { payload = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || 'null'); } catch (e) { payload = null; }
-    if (!payload || !payload.state) return;
-    const newestProjectTime = savedTracks.reduce((max, t) => Math.max(max, t.createdAt || t.id || 0), 0);
-    const btn = document.getElementById('restoreAutosaveBtn');
-    if (!btn) return;
-    if (payload.timestamp > newestProjectTime) {
-        btn.style.display = 'block';
-        btn.textContent = 'Восстановить автосохранение от ' + new Date(payload.timestamp).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-        btn.onclick = () => {
-            if (!confirm('Восстановить автосохранённую версию? Текущий незасохранённый паттерн будет заменён.')) return;
-            applyFullState(payload.state);
-            btn.style.display = 'none';
-            setStatus('Восстановил автосохранённую версию.');
-        };
-    }
-}
-
-/* ------------------------------------------------------
-   ИСТОРИЯ ВЕРСИЙ — крупные слепки на значимых действиях
-   (генерация, точечная правка, импорт MIDI, гармонизация и т.д.),
-   не путать с пошаговым Undo/Redo в Piano Roll.
------------------------------------------------------- */
-function loadVersionHistoryFromStorage() {
-    try { versionHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch (e) { versionHistory = []; }
-}
-function pushVersionSnapshot(label) {
-    try {
-        if (melody.length === 0) return;
-        versionHistory.push({ id: Date.now() + Math.random(), label: label || 'Изменение', timestamp: Date.now(), state: captureFullState() });
-        if (versionHistory.length > HISTORY_MAX) versionHistory.shift();
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(versionHistory));
-    } catch (e) { /* переполнение localStorage — не критично, просто не сохранили этот слепок */ }
-}
-function renderHistoryModal() {
-    const wrap = document.getElementById('historyList');
-    if (!wrap) return;
-    if (versionHistory.length === 0) { wrap.innerHTML = '<span class="empty-hint">История пуста — слепки появятся после генерации или правки.</span>'; return; }
-    wrap.innerHTML = '';
-    versionHistory.slice().reverse().forEach(snap => {
-        const row = document.createElement('div');
-        row.className = 'history-row';
-        const dt = new Date(snap.timestamp).toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-        row.innerHTML = `<div class="history-row-info"><span class="history-row-label">${snap.label}</span><span class="history-row-date">${dt} · ${snap.state.melody.length} нот</span></div>`;
-        const btn = document.createElement('button');
-        btn.className = 'mini-btn'; btn.textContent = 'Восстановить';
-        btn.addEventListener('click', () => {
-            /* сохраняем ТЕКУЩЕЕ состояние как отдельную версию, прежде
-               чем перезаписать его — ничего не теряется. */
-            pushVersionSnapshot('Перед восстановлением');
-            applyFullState(snap.state);
-            document.getElementById('historyModalOverlay').classList.remove('open');
-            setStatus(`Восстановил версию «${snap.label}» от ${dt}.`);
-        });
-        row.appendChild(btn);
-        wrap.appendChild(row);
-    });
-}
-function openHistoryModal() { renderHistoryModal(); document.getElementById('historyModalOverlay').classList.add('open'); }
-function closeHistoryModal() { document.getElementById('historyModalOverlay').classList.remove('open'); }
 
 function applySettings(s) {
     if (!s) return;
@@ -6366,7 +5839,6 @@ function openCtxMenuAt(canvasX, canvasY, screenX, screenY) {
         ['Тише', () => velocityNudgeSelected(-0.15), hasSel],
         ['Растянуть ×1.5', () => stretchSelectedNotes(1.5), hasSel],
         ['Сжать ×0.75', () => stretchSelectedNotes(0.75), hasSel],
-        ['Гармонизовать', runHarmonize, true],
         ['Выделить всё', selectAllNotes, true],
     ];
     menu.innerHTML = '';
@@ -6953,50 +6425,6 @@ function init() {
     initEnergyCurveUI();
     renderEnergyCurve();
     initInstrumentCategoryFilter();
-
-    /* ====== V3.0: MIDI экспорт/импорт ====== */
-    document.getElementById('exportMidiBtn').addEventListener('click', () => {
-        const bpm = parseInt(document.getElementById('tempoSlider').value) || 110;
-        const name = (typeof currentTrackName !== 'undefined' && currentTrackName) || 'asoa_ai_track';
-        exportMIDI(melody, bpm, name);
-    });
-    const midiFileInput = document.getElementById('midiFileInput');
-    document.getElementById('importMidiBtn').addEventListener('click', () => midiFileInput.click());
-    midiFileInput.addEventListener('change', async () => {
-        const file = midiFileInput.files[0];
-        midiFileInput.value = '';
-        if (!file) return;
-        try {
-            const imported = await importMIDI(file);
-            if (imported.length === 0) { alert('В этом MIDI-файле не нашлось нот.'); return; }
-            const replace = melody.length > 0
-                ? confirm(`Импортировано нот: ${imported.length}.\nЗаменить текущий паттерн? (Отмена = добавить к существующему)`)
-                : true;
-            pushHistory();
-            melody = replace ? imported : melody.concat(imported.map(n => ({ ...n, startTimeOffsetSeconds: n.startTimeOffsetSeconds }))).sort((a,b)=>a.startTimeOffsetSeconds-b.startTimeOffsetSeconds);
-            markDirty(); updateMelodyDisplay(); renderAnalysis();
-            if (typeof renderPianoRoll === 'function') renderPianoRoll();
-            pushVersionSnapshot('Импорт MIDI');
-            setStatus(`Импортировал ${imported.length} нот из MIDI-файла.`);
-        } catch (e) {
-            alert('Не удалось прочитать MIDI-файл: ' + e.message);
-        }
-    });
-
-    /* ====== V3.0: гармонизация ====== */
-    document.getElementById('harmonizeBtn').addEventListener('click', runHarmonize);
-
-    /* ====== V3.0: история версий (модальное окно) ====== */
-    document.getElementById('showHistoryBtn').addEventListener('click', openHistoryModal);
-    document.getElementById('closeHistoryBtn').addEventListener('click', closeHistoryModal);
-    document.getElementById('historyModalOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'historyModalOverlay') closeHistoryModal();
-    });
-
-    /* ====== V3.0: автосохранение ====== */
-    loadVersionHistoryFromStorage();
-    checkAndOfferAutosaveRestore();
-    startAutosaveTimer();
 }
 
 window.onload = init;
