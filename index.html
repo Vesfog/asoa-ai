@@ -140,6 +140,19 @@ button{border:1.5px solid var(--ink)}
 .pill{width:auto;padding:11px 16px;font-size:13px;font-weight:700}
 #recordBtn:disabled,#stopRecordBtn:disabled{display:none}
 #stopRecordBtn:not(:disabled){background:var(--danger);color:#fff;border-color:var(--ink);animation:pulse 1.4s infinite}
+.nav button{border-bottom:3px solid var(--tab,transparent)}
+.nav button.dock-active{background:var(--tab,var(--accent));color:var(--tab-on,var(--on-accent))}
+.side-panel[data-themed]{border-top:8px solid var(--accent)}
+.look-styles{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.look-styles button{display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:9px 10px;font-size:12.5px;font-weight:600}
+.look-styles button i{width:14px;height:14px;background:var(--sw);border:1px solid #000;flex:none}
+.look-styles button.active{background:var(--accent);color:var(--on-accent)}
+.lk-row{display:grid;grid-template-columns:minmax(0,1fr) 112px 38px 30px;gap:6px;align-items:center;margin-bottom:6px;font-size:12px;font-weight:600}
+.lk-row.all{border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:10px}
+.lk-row select{width:100%;min-width:0;padding:5px 4px;font-size:12px}
+.lk-row input[type=color]{width:38px;height:30px;padding:0;border:1.5px solid var(--ink);background:none;cursor:pointer}
+.lk-row button{width:30px;height:30px;padding:0}
+
 .more{position:relative}
 .more summary{list-style:none;cursor:pointer;padding:11px 16px;border:1.5px solid var(--ink);background:var(--card);font-size:13px;font-weight:700}
 .more summary::-webkit-details-marker{display:none}
@@ -168,7 +181,7 @@ button{border:1.5px solid var(--ink)}
 #panel-voice[data-st=idle] button[data-show~=idle],#panel-voice[data-st=rec] button[data-show~=rec],#panel-voice[data-st=pause] button[data-show~=pause],#panel-voice[data-st=done] button[data-show~=done]{display:inline-flex!important}
 #panel-voice[data-st=done] .panel-section[data-show~=done]{display:block!important}
 .kc-list{display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
-.kc-row{display:flex;align-items:center;gap:4px;border:1px solid var(--line);padding:3px 3px 3px 8px;font:700 12px monospace}
+.kc-row{display:flex;align-items:center;gap:4px;border:1px solid var(--line);padding:3px 3px 3px 8px;font:700 11.5px monospace;min-width:0}
 .kc-row.bk{background:var(--bg)}.kc-row span{flex:1}.kc-row button{width:auto;padding:4px 8px;font-size:11.5px}.kc-row button.on{background:var(--accent);color:var(--on-accent)}
 @media (hover:none) and (pointer:coarse){.hide-touch,.kk{display:none!important}}
 @media (max-width:720px){
@@ -645,6 +658,7 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
       <button class="dock-btn" data-panel="panel-editor" title="Дополнить и изменить музыку"><span class="ic tri"></span>Помощник ИИ</button>
       <button class="dock-btn" data-panel="panel-projects" title="Сохранённые треки"><span class="ic "></span>Проекты</button>
     </nav>
+    <button class="tb" id="settingsBtn" title="Стиль сайта и цвета меню">Настройки</button>
     <button class="tb theme-btn" id="themeBtn">Тёмная тема</button>
   </header>
   <main class="stage">
@@ -716,6 +730,20 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
         <button id="vsEditBtn" style="margin-top:8px">Исправить в редакторе нот</button>
         <div class="hint">Распознаётся один голос, один звук за раз. Аккорды и многоголосие не поддерживаются. Оригинальная запись хранится отдельно от нот. Повторное распознавание заменяет прошлый результат этой записи.</div>
     </div>
+</aside>
+<aside class="side-panel" id="panel-look">
+    <div class="panel-header"><h2>Настройки</h2><button class="panel-close">Закрыть</button></div>
+    <div class="panel-section">
+        <div class="section-title">Стиль сайта</div>
+        <div class="look-styles" id="lookStyles"></div>
+        <div class="hint">Меняет весь сайт целиком. Светлая и тёмная тема переключаются кнопкой в шапке.</div>
+    </div>
+    <div class="panel-section">
+        <div class="section-title">Меню: стиль и цвет</div>
+        <div class="hint" style="margin:0 0 8px">Выберите стиль и цвет для каждого меню отдельно или сразу для всех в первой строке.</div>
+        <div id="lookRows"></div>
+    </div>
+    <button id="lookReset">Сбросить все настройки</button>
 </aside>
 <aside class="side-panel" id="panel-keys">
     <div class="panel-header"><h2>Настроить клавиши</h2><button class="panel-close">Закрыть</button></div>
@@ -6266,7 +6294,7 @@ function init() {
     initEnergyCurveUI();
     renderEnergyCurve();
     initInstrumentCategoryFilter();
-    initVoiceStudio(); initKeyConfig(); initPattern();
+    initVoiceStudio(); initKeyConfig(); initPattern(); initLook();
 }
 
 /* ======================================================
@@ -6689,6 +6717,89 @@ function initVoiceStudio() {
     document.addEventListener('visibilitychange', () => { if (document.hidden && VS.st === 'idle') vsRelease(); });
     window.addEventListener('pagehide', vsRelease);
     vsRestore();
+}
+
+
+/* ======================================================
+   НАСТРОЙКИ ВНЕШНЕГО ВИДА — стиль сайта + стиль/цвет каждого меню.
+   Стили — наборы CSS-переменных: на body (весь сайт) и на отдельной панели.
+====================================================== */
+const LOOK_KEY = 'asoa_look';
+const LOOK_STYLES = {
+    forest: { n: 'Лес',   l: ['#f1ecdc', '#fbf8ee', '#ece6d2', '#c8c2ab', '#1f2d26', '#6b776c', '#2f7a58'], d: ['#17231d', '#20302a', '#2b3d35', '#41584c', '#e8efe5', '#9db0a2', '#6fcf97'] },
+    sunset: { n: 'Закат', l: ['#f7ece1', '#fffaf4', '#f1e0d0', '#dcc4ae', '#2d1d14', '#7b6455', '#d9622b'], d: ['#2a1f1a', '#3a2b24', '#483730', '#5e463b', '#f5e6dc', '#bba294', '#ff9a62'] },
+    lilac:  { n: 'Сирень', l: ['#efe9f6', '#faf7fd', '#e6def2', '#cbbfe0', '#251b36', '#6d6280', '#6d45c9'], d: ['#221c2e', '#2f2740', '#3a3050', '#4d4268', '#ece6fa', '#aaa0c4', '#b79cff'] },
+    ocean:  { n: 'Океан', l: ['#e8eff7', '#f7fafd', '#dde8f4', '#bccbe0', '#14233a', '#5f6f86', '#2a62c9'], d: ['#19222f', '#243245', '#2e3f58', '#40546f', '#e6eefa', '#9bacc4', '#7fb0ff'] },
+    sand:   { n: 'Песок', l: ['#f3ead7', '#fcf7ea', '#ece0c6', '#d3c4a2', '#2e2412', '#7a6c52', '#a8672a'], d: ['#2b2419', '#3b3223', '#493f2d', '#5f523b', '#f3e8d2', '#bfb094', '#e0a35e'] },
+    rose:   { n: 'Роза',  l: ['#f8e9ee', '#fffafb', '#f3dde5', '#e0bcc9', '#33151f', '#80606b', '#c93a6c'], d: ['#2e1d24', '#41292f', '#503540', '#684551', '#fae6ec', '#c3a3ad', '#ff8fb3'] }
+};
+const LOOK_PANELS = [['panel-voice', 'Записать голос'], ['panel-instruments', 'Инструменты'], ['panel-effects', 'Звуковые эффекты'], ['panel-mood', 'Стиль'], ['panel-settings', 'Темп и длина'], ['panel-editor', 'Помощник ИИ'], ['panel-projects', 'Проекты'], ['panel-keys', 'Настроить клавиши']];
+const LOOK_VARS = ['--bg', '--bg-elevated', '--card', '--card-hover', '--panel-bg', '--panel-bg-glass', '--dock-bg', '--line', '--border', '--text', '--text-light', '--paper', '--accent', '--accent-2', '--on-accent', '--accent-soft'];
+let look = { site: 'classic', panels: {} };
+try { const sv = JSON.parse(localStorage.getItem(LOOK_KEY) || 'null'); if (sv && typeof sv === 'object') look = { site: LOOK_STYLES[sv.site] ? sv.site : 'classic', panels: sv.panels || {} }; } catch (_) {}
+
+const lkRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const lkHex6 = h => { h = (h || '').trim(); return /^#[0-9a-f]{3}$/i.test(h) ? '#' + [...h.slice(1)].map(c => c + c).join('') : /^#[0-9a-f]{6}$/i.test(h) ? h : '#888888'; };
+function lookVars(styleId, color) {
+    const st = LOOK_STYLES[styleId], dark = document.body.classList.contains('dark'), v = {};
+    if (st) {
+        const p = dark ? st.d : st.l;
+        Object.assign(v, { '--bg': p[0], '--bg-elevated': p[1], '--card': p[1], '--card-hover': p[2], '--panel-bg': p[1], '--panel-bg-glass': p[1], '--dock-bg': p[1], '--line': p[3], '--border': p[3], '--text': p[4], '--text-light': p[5], '--paper': p[1], '--accent': p[6] });
+    }
+    if (color) v['--accent'] = color;
+    if (v['--accent']) {
+        const a = v['--accent'], [r, g, b] = lkRgb(a);
+        v['--accent-2'] = a; v['--on-accent'] = (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#111111' : '#ffffff'; v['--accent-soft'] = `rgba(${r},${g},${b},.16)`;
+    }
+    return v;
+}
+function lkSet(el, v) { LOOK_VARS.forEach(k => el.style.removeProperty(k)); for (const k in v) el.style.setProperty(k, v[k]); }
+
+function applyLook(skipUI) {
+    lkSet(document.body, lookVars(look.site, null));
+    LOOK_PANELS.forEach(([id]) => {
+        const pn = document.getElementById(id), cfg = look.panels[id] || {}, has = !!(cfg.style || cfg.color);
+        if (!pn) return;
+        const v = has ? lookVars(cfg.style, cfg.color) : {};
+        lkSet(pn, v); pn.toggleAttribute('data-themed', has);
+        const tab = document.querySelector(`.dock-btn[data-panel="${id}"]`);
+        if (tab) { if (has && v['--accent']) { tab.style.setProperty('--tab', v['--accent']); tab.style.setProperty('--tab-on', v['--on-accent']); } else { tab.style.removeProperty('--tab'); tab.style.removeProperty('--tab-on'); } }
+    });
+    try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch (_) {}
+    if (!skipUI) renderLookUI();
+}
+
+function renderLookUI() {
+    const dark = document.body.classList.contains('dark');
+    const sw = id => id === 'classic' ? '#111111' : LOOK_STYLES[id][dark ? 'd' : 'l'][6];
+    $('lookStyles').innerHTML = ['classic', ...Object.keys(LOOK_STYLES)].map(id => `<button data-site="${id}" class="${look.site === id ? 'active' : ''}"><i style="--sw:${sw(id)}"></i>${id === 'classic' ? 'Классика' : LOOK_STYLES[id].n}</button>`).join('');
+    const opts = sel => '<option value="">Как на сайте</option>' + Object.keys(LOOK_STYLES).map(id => `<option value="${id}"${sel === id ? ' selected' : ''}>${LOOK_STYLES[id].n}</option>`).join('');
+    const colorOf = id => { const pn = document.getElementById(id); return lkHex6(pn ? getComputedStyle(pn).getPropertyValue('--accent') : ''); };
+    const row = (id, name, cfg, cls) => `<div class="lk-row ${cls || ''}"><span>${name}</span><select data-p="${id}" class="text-input">${opts(cfg.style)}</select><input type="color" data-c="${id}" value="${cfg.color || colorOf(id === 'all' ? 'panel-look' : id)}" aria-label="Цвет: ${name}"><button data-r="${id}" title="Сбросить" aria-label="Сбросить: ${name}">×</button></div>`;
+    $('lookRows').innerHTML = row('all', 'Все меню', {}, 'all') + LOOK_PANELS.map(([id, n]) => row(id, n, look.panels[id] || {})).join('');
+}
+
+function initLook() {
+    const targets = id => id === 'all' ? LOOK_PANELS.map(p => p[0]) : [id];
+    $('lookStyles').addEventListener('click', e => { const b = e.target.closest('[data-site]'); if (b) { look.site = b.dataset.site; applyLook(); } });
+    $('lookRows').addEventListener('change', e => {
+        const sel = e.target.closest('select[data-p]'); if (!sel) return;
+        targets(sel.dataset.p).forEach(id => { const c = look.panels[id] = look.panels[id] || {}; if (sel.value) c.style = sel.value; else delete c.style; });
+        applyLook();
+    });
+    $('lookRows').addEventListener('input', e => {
+        const inp = e.target.closest('input[data-c]'); if (!inp) return;
+        targets(inp.dataset.c).forEach(id => { const c = look.panels[id] = look.panels[id] || {}; c.color = inp.value; });
+        applyLook(true);                               // без перерисовки, чтобы не закрыть выбор цвета
+    });
+    $('lookRows').addEventListener('click', e => {
+        const b = e.target.closest('[data-r]'); if (!b) return;
+        targets(b.dataset.r).forEach(id => { delete look.panels[id]; }); applyLook();
+    });
+    $('lookReset').addEventListener('click', () => { look = { site: 'classic', panels: {} }; applyLook(); });
+    $('settingsBtn').addEventListener('click', () => openPanel('panel-look'));
+    new MutationObserver(() => applyLook()).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    applyLook();
 }
 
 window.onload = init;
