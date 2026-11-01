@@ -157,6 +157,12 @@ button{border:1.5px solid var(--ink)}
 .ai-thoughts:empty{display:none}
 .ai-thoughts div{margin-bottom:4px}
 #liveBtn.active{background:var(--accent);color:var(--on-accent)}
+.vs-prog{margin-top:10px;border:1.5px solid var(--ink);padding:8px 10px;background:var(--card)}
+.vs-prog-h{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;font-weight:600;margin-bottom:6px;line-height:1.4}
+.vs-prog-bar{height:14px;border:1.5px solid var(--ink);background:var(--bg)}
+.vs-prog-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.vs-prog.err{border-color:var(--danger)}.vs-prog.err .vs-prog-bar i{background:var(--danger)}
+#vsNotesBtn:disabled{opacity:.7;cursor:progress}
 .more{position:relative}
 .more summary{list-style:none;cursor:pointer;padding:11px 16px;border:1.5px solid var(--ink);background:var(--card);font-size:13px;font-weight:700}
 .more summary::-webkit-details-marker{display:none}
@@ -724,6 +730,7 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
         <div class="section-title" style="margin-top:14px">Инструмент</div>
         <select id="vsInst" class="text-input" style="width:100%"></select>
         <button id="vsNotesBtn" class="btn-accent" style="width:100%;margin-top:12px;padding:14px;font-weight:700">Преобразовать</button>
+        <div class="vs-prog" id="vsProg" hidden><div class="vs-prog-h"><span id="vsProgTxt"></span><b id="vsProgPct">0%</b></div><div class="vs-prog-bar"><i id="vsProgFill"></i></div></div>
         <div id="vsNotes"></div>
         <button id="vsEditBtn" style="margin-top:8px">Исправить в редакторе нот</button>
         <div class="hint">Пойте по одному звуку. Повторное нажатие заменяет прошлый результат.</div>
@@ -6300,7 +6307,7 @@ function updateMelodyDisplay() {
         if (shown >= patLimit) break;
         if (n.sectionLabel && n.sectionLabel !== lastSec) { html += `<div class="sec">${esc(n.sectionLabel)}</div>`; lastSec = n.sectionLabel; }
         const gap = n.startTimeOffsetSeconds - maxEnd;
-        if (maxEnd > 0 && gap > 0.25) html += `<div class="rest">пауза<br>${gap.toFixed(1)} с</div>`;
+        if (gap > 0.25) html += `<div class="rest">пауза<br>${gap.toFixed(1)} с</div>`;
         maxEnd = Math.max(maxEnd, n.startTimeOffsetSeconds + n.durationSeconds);
         const w = Math.max(14, Math.min(100, (n.duration || 1) * 50));
         html += `<button class="nb${n.id === patSel ? ' sel' : ''}" data-id="${n.id}" style="--c:${LAYER_COL[n.layer || 'melody']}"><b>${n.note}</b><small>${esc(instLabel(n.instrument))}</small><small>${durLabel(n.duration)} · окт ${noteOct(n)}</small><i style="width:${w}%"></i></button>`;
@@ -6430,11 +6437,11 @@ const vsDB = (() => {
 function vsMsg(t, cls) { const m = $('vsMsg'); m.textContent = t; m.className = 'vs-msg' + (cls ? ' ' + cls : ''); }
 
 /* автокорреляция NSDF с уточнением пика; возвращает частоту, уверенность и громкость */
-function detectPitch(buf, sr) {
+function detectPitch(buf, sr, targetRate) {
     let e = 0; for (let i = 0; i < buf.length; i++) e += buf[i] * buf[i];
     const rms = Math.sqrt(e / buf.length);
-    if (rms < 0.003) return { f: 0, rms, c: 0 };
-    const ds = sr >= 32000 ? 2 : 1, n = buf.length / ds | 0, x = new Float32Array(n), rate = sr / ds;
+    if (rms < 0.0007) return { f: 0, rms, c: 0 };
+    const ds = Math.max(1, Math.round(sr / (targetRate || 22050))), n = buf.length / ds | 0, x = new Float32Array(n), rate = sr / ds;
     for (let i = 0; i < n; i++) { let a = 0; for (let k = 0; k < ds; k++) a += buf[i * ds + k]; x[i] = a / ds; }
     const minLag = Math.floor(rate / 1100), maxLag = Math.min(Math.floor(rate / 70), (n >> 1) - 2);
     const nsdf = new Float32Array(maxLag + 2);
@@ -6567,10 +6574,10 @@ async function vsFinish() {
     vsRelease();                                             // микрофон выключается сразу
     VS.take = Date.now();
     VS.blob = VS.chunks.length ? new Blob(VS.chunks, { type: VS.mime || VS.chunks[0].type }) : null; VS.chunks = [];
-    const voiced = vsAnalyze().length;
+    const voiced = vsAnalyze(VS.frames).length;
     if (VS.frames.length < 10) { VS.st = 'idle'; vsUI(); vsMsg('Запись слишком короткая. Попробуйте ещё раз.', 'warn'); return; }
     VS.st = 'done'; vsShowAudio(); vsUI(); vsWave();
-    vsMsg(voiced ? `Запись готова (${mmss(VS.t)}). Найдено звуков: ${voiced}. Нажмите «Голос в ноты» или «Музыка из голоса».` : 'Запись готова, но голос не распознан. Увеличьте чувствительность или пойте громче и ближе к микрофону.', voiced ? '' : 'warn');
+    vsMsg(voiced ? `Запись готова (${mmss(VS.t)}). Найдено звуков: ${voiced}. Нажмите «Преобразовать».` : 'Запись готова, но голос не распознан. Пойте громче и ближе к микрофону.', voiced ? '' : 'warn');
     vsSave();
 }
 function vsShowAudio() {
@@ -6593,7 +6600,7 @@ async function vsClear(keepNotes) {            // удаляет только з
     const id = VS.take;
     if (VS.url) { URL.revokeObjectURL(VS.url); VS.url = null; }
     $('vsAudio').removeAttribute('src'); VS.blob = null; VS.frames = []; VS.levels = []; VS.t = 0; VS.take = 0; VS.st = 'idle';
-    $('vsNotes').innerHTML = ''; vsUI(); vsWave();
+    $('vsNotes').innerHTML = ''; VS.off = null; $('vsProg').hidden = true; vsUI(); vsWave();
     if (id) { try { await vsDB('del', 'take:' + id); await vsDB('del', 'last'); } catch (_) {} }
 }
 function vsOnClose() { if (VS.st === 'rec' || VS.st === 'pause') vsFinish(); else vsRelease(); }
@@ -6616,41 +6623,71 @@ async function vsCheck() {
     $('vsDiag').innerHTML = L.join('');
 }
 
-/* ---- распознавание: кадры → сегменты → ноты (одна кнопка «Преобразовать») ---- */
-function vsSegmentsWith(th) {
+/* ---- «Преобразовать»: анализ записи → ноты и паузы → перенос в паттерн (с полоской прогресса) ---- */
+const tick = () => new Promise(r => setTimeout(r, 0));
+function vsProg(pct, txt, cls) {
+    const box = $('vsProg'); box.hidden = false; box.className = 'vs-prog' + (cls ? ' ' + cls : '');
+    $('vsProgFill').style.width = Math.max(0, Math.min(100, pct)) + '%';
+    $('vsProgPct').textContent = cls === 'err' ? '' : Math.round(pct) + '%';
+    $('vsProgTxt').textContent = txt;
+}
+
+/* Повторный анализ самой записи: декодируем звук и ищем высоту тона каждые 20 мс (громкость выравнивается) */
+async function vsOfflineFrames(onP) {
+    const ab = await VS.blob.arrayBuffer(), ctx = getAudioCtx();
+    const audio = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
+    const x = audio.getChannelData(0), sr = audio.sampleRate;
+    let peak = 0; for (let i = 0; i < x.length; i += 7) peak = Math.max(peak, Math.abs(x[i]));
+    const g = peak > 0 ? Math.min(40, 0.8 / peak) : 1;
+    const win = 2048, hop = Math.max(1, Math.round(sr * 0.02)), buf = new Float32Array(win), frames = [];
+    let last = performance.now();
+    for (let s = 0; s + win <= x.length; s += hop) {
+        for (let i = 0; i < win; i++) buf[i] = x[s + i] * g;
+        const r = detectPitch(buf, sr, 15000);
+        frames.push([(s + win / 2) / sr, r.f, r.c, r.rms]);
+        if (performance.now() - last > 30) { onP(s / x.length); await tick(); last = performance.now(); }
+    }
+    return frames;
+}
+
+function vsSegmentsWith(frames, th) {
     const med = a => a.slice().sort((p, q) => p - q)[a.length >> 1];
-    const fr = VS.frames.map(x => ({ t: x[0], r: x[3], m: (x[2] >= th.c && x[3] >= th.r && x[1] >= 70 && x[1] <= 1100) ? 69 + 12 * Math.log2(x[1] / 440) : null }));
+    const h = frames.length > 1 ? Math.max(0.005, (frames[frames.length - 1][0] - frames[0][0]) / (frames.length - 1)) : 0.03;
+    const F = s => Math.max(2, Math.round(s / h));
+    const fr = frames.map(x => ({ t: x[0], r: x[3], m: (x[2] >= th.c && x[3] >= th.r && x[1] >= 70 && x[1] <= 1100) ? 69 + 12 * Math.log2(x[1] / 440) : null }));
+    const K = Math.max(3, Math.round(0.15 / h)), W = Math.max(1, Math.round(0.06 / h));
     const vi = []; fr.forEach((x, i) => { if (x.m != null) vi.push(i); });
     vi.forEach((i, k) => {                                              // исправление октавных ошибок
-        const nb = []; for (let j = Math.max(0, k - 5); j <= Math.min(vi.length - 1, k + 5); j++) if (j !== k) nb.push(fr[vi[j]].m);
+        const nb = []; for (let j = Math.max(0, k - K); j <= Math.min(vi.length - 1, k + K); j++) if (j !== k) nb.push(fr[vi[j]].m);
         if (nb.length < 4) return;
         const d = fr[i].m - med(nb); if (Math.abs(Math.abs(d) - 12) < 1.2) fr[i].m -= Math.sign(d) * 12;
     });
-    const sm = fr.map((x, i) => { if (x.m == null) return null; const w = []; for (let j = i - 2; j <= i + 2; j++) if (fr[j] && fr[j].m != null) w.push(fr[j].m); return med(w); });
+    const sm = fr.map((x, i) => { if (x.m == null) return null; const w = []; for (let j = i - W; j <= i + W; j++) if (fr[j] && fr[j].m != null) w.push(fr[j].m); return med(w); });
+    const gapMax = F(0.1), devN = F(0.08), minLen = F(0.085), splitLen = F(0.2);
     const segs = []; let cur = null, gap = 0, dev = 0, low = false, valley = 1, peak = 0;
     for (let i = 0; i < sm.length; i++) {
         const m = sm[i], r = fr[i].r;
-        if (m == null) { if (cur && ++gap > 3) { segs.push(cur); cur = null; } continue; }
+        if (m == null) { if (cur && ++gap > gapMax) { segs.push(cur); cur = null; } continue; }
         gap = 0;
         if (!cur) { cur = { t0: fr[i].t, v: [], r: [], t1: 0, split: false }; dev = 0; low = false; valley = 1; peak = 0; }
-        cur.v.push(m); cur.r.push(r); cur.t1 = fr[i].t + 0.03;
+        cur.v.push(m); cur.r.push(r); cur.t1 = fr[i].t + h;
         const base = cur.v.slice(0, Math.max(1, cur.v.length - dev));
         dev = Math.abs(m - med(base)) > 0.7 ? dev + 1 : 0;
-        if (dev >= 3) {                                                  // новая высота держится ≥3 кадров — это новая нота
+        if (dev >= devN) {                                               // новая высота держится — это новая нота
             const tv = cur.v.splice(-dev), tr = cur.r.splice(-dev), ts = fr[i - dev + 1].t;
             cur.t1 = ts; segs.push(cur);
-            cur = { t0: ts, v: tv, r: tr, t1: fr[i].t + 0.03, split: false }; dev = 0; low = false; valley = 1; peak = Math.max(...tr);
+            cur = { t0: ts, v: tv, r: tr, t1: fr[i].t + h, split: false }; dev = 0; low = false; valley = 1; peak = Math.max(...tr);
             continue;
         }
         peak = Math.max(peak, r); if (r < peak * 0.5) { low = true; valley = Math.min(valley, r); }
-        if (low && r > valley * 1.7 + 0.004 && cur.v.length >= 7) {      // провал громкости и новый удар — повтор той же ноты
+        if (low && r > valley * 1.7 + 1e-4 && cur.v.length >= splitLen) {  // провал громкости и новый удар — повтор той же ноты
             const v = cur.v.pop(), rr = cur.r.pop(); cur.t1 = fr[i].t; segs.push(cur);
-            cur = { t0: fr[i].t, v: [v], r: [rr], t1: fr[i].t + 0.03, split: true }; peak = rr; low = false; valley = 1; dev = 0;
+            cur = { t0: fr[i].t, v: [v], r: [rr], t1: fr[i].t + h, split: true }; peak = rr; low = false; valley = 1; dev = 0;
         }
     }
     if (cur) segs.push(cur);
     const out = [];
-    segs.filter(s => s.v.length >= 3).forEach(s => {
+    segs.filter(s => s.v.length >= minLen).forEach(s => {
         const mf = med(s.v), m = Math.round(mf), last = out[out.length - 1];
         const rms = s.r.reduce((a, b) => a + b, 0) / s.r.length;
         if (last && last.m === m && !s.split && s.t0 - last.t1 < 0.1) { last.t1 = s.t1; last.rms = (last.rms + rms) / 2; }
@@ -6658,59 +6695,92 @@ function vsSegmentsWith(th) {
     });
     return out;
 }
-function vsAnalyze() {                                                  // порог подбирается сам: от строгого к мягкому
-    const rr = VS.frames.map(x => x[3]).filter(v => v > 0).sort((a, b) => a - b), floor = rr.length ? rr[Math.floor(rr.length * 0.1)] : 0.003;
-    const tries = [{ c: 0.85, r: Math.max(0.015, floor * 3) }, { c: 0.75, r: Math.max(0.01, floor * 2.5) }, { c: 0.62, r: Math.max(0.006, floor * 2) }];
+function vsAnalyze(frames) {                                            // пороги считаются от громкости самой записи
+    if (!frames || !frames.length) return [];
+    const rr = frames.map(x => x[3]).filter(v => v > 0).sort((a, b) => a - b);
+    const noise = rr[Math.floor(rr.length * 0.1)] || 0, p90 = rr[Math.floor(rr.length * 0.9)] || 0.01;
+    const rel = v => Math.max(0.0012, noise * 2.5, p90 * v);
+    const tries = [{ c: 0.85, r: rel(0.18) }, { c: 0.75, r: rel(0.12) }, { c: 0.62, r: rel(0.08) }];
     let segs = [];
-    for (const th of tries) { segs = vsSegmentsWith(th); if (segs.length >= 2) break; }
+    for (const th of tries) { segs = vsSegmentsWith(frames, th); if (segs.length >= 2) break; }
     return segs;
 }
 function vsTempo(onsets, cur) {                                          // темп, при котором вступления ложатся на сетку
     if (onsets.length < 5) return cur;
     const rel = onsets.map(t => t - onsets[0]);
-    const err = bpm => { const g = 60 / bpm / 2; let e = 0; rel.forEach(t => { const r = ((t % g) + g) % g; e += Math.min(r, g - r) / g; }); return e / rel.length + 0.015 * Math.abs(Math.log2(bpm / 100)); };
-    let best = cur, be = err(cur);
-    for (let b = 60; b <= 180; b++) { const e = err(b); if (e < be - 0.03) { be = e; best = b; } }
-    return best;
+    const err = bpm => { const g = 60 / bpm / 2; let e = 0; rel.forEach(t => { const r = ((t % g) + g) % g; e += Math.min(r, g - r) / g; }); return e / rel.length + 0.04 * Math.abs(Math.log2(bpm / 105)); };
+    let best = cur, be = Infinity;
+    for (let b = 60; b <= 180; b++) { const e = err(b); if (e < be) { be = e; best = b; } }
+    return be < err(cur) - 0.03 ? best : cur;
 }
 
-function vsConvert() {
-    const segs = vsAnalyze();
-    if (!segs.length) { vsMsg('Ноты не найдены. Пойте чётче и громче, ближе к микрофону, по одному звуку.', 'warn'); return; }
-    const first = segs[0].t0;
-    let bpm = parseInt($('tempoSlider').value) || 110;
-    const nb = vsTempo(segs.map(s => s.t0), bpm);
-    if (nb !== bpm) { bpm = nb; $('tempoSlider').value = bpm; $('bpmValue').textContent = bpm; $('tempoSlider').dispatchEvent(new Event('input')); }
-    const beat = 60 / bpm, q = beat / 4;
-    /* подгонка под тональность: ноты вне лада, спетые неточно, притягиваются к ближайшей ступени */
-    const probe = segs.map(s => ({ note: midiName(Math.min(72, Math.max(48, s.m % 12 + 48))), durationSeconds: s.t1 - s.t0, startTimeOffsetSeconds: s.t0 }));
-    const key = detectKey(probe); let fixed = 0;
-    if (key.fit > 0.8) segs.forEach(s => {
-        if (key.scale.includes(((s.m % 12) + 12) % 12)) return;
-        let best = null; for (const d of [-1, 1]) { const c = s.m + d; if (key.scale.includes(((c % 12) + 12) % 12) && (best == null || Math.abs(s.mf - c) < Math.abs(s.mf - best))) best = c; }
-        if (best != null && Math.abs(s.mf - best) < 0.9) { s.m = best; fixed++; }
-    });
-    const ms = segs.map(s => s.m).sort((a, b) => a - b), shift = Math.round((60 - ms[ms.length >> 1]) / 12) * 12;
-    const rs = segs.map(s => s.rms).sort((a, b) => a - b), top = rs[Math.floor(rs.length * 0.9)] || 1;
-    pushHistory();
-    melody = melody.filter(n => n.take !== VS.take && n.takeSupport !== VS.take && n.aiLayer !== 'voice');
-    const base = melody.reduce((m, n) => Math.max(m, n.startTimeOffsetSeconds + n.durationSeconds), 0);
-    let prevEnd = 0;
-    const notes = segs.map(s => {
-        let st = Math.round((s.t0 - first) / q) * q, du = Math.max(q, Math.round((s.t1 - s.t0) / q) * q);
-        st = Math.max(st, prevEnd); prevEnd = st + du;
-        let m = s.m + shift; while (m < 48) m += 12; while (m > 72) m -= 12;
-        return { st, du, note: midiName(m), vf: Math.max(0.6, Math.min(1.1, 0.6 + 0.5 * (s.rms / top))) };
-    });
-    notes.forEach((n, i) => { const nx = notes[i + 1]; if (nx) { const g = nx.st - (n.st + n.du); if (g > 0 && g < beat * 0.5) n.du += g; } });   // убираем микро-паузы
-    const out = notes.map(n => ({ note: n.note, duration: n.du / beat, durationSeconds: n.du, startTimeOffsetSeconds: base + n.st, instrument: currentInstrument, bpm, octave: 0, echo: currentEcho,
-        volumeFactor: n.vf, userPlayed: true, source: 'voice', origin: 'voice', take: VS.take }));
-    melody = melody.concat(out).sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
-    $('vsNotes').innerHTML = out.slice(0, 60).map(n => `<span>${n.note}</span>`).join('') + (out.length > 60 ? '<span>…</span>' : '');
-    markDirty(); renderAnalysis();
-    const msg = `Готово: ${out.length} нот, ${keyName(key)}, ${bpm} BPM${fixed ? `, исправил неточных нот: ${fixed}` : ''}. Правьте в редакторе нот.`;
-    vsMsg(msg); setStatus(msg);
-    playMelody(melody);
+async function vsConvert() {
+    if (VS.busy) return;
+    if (!VS.frames.length && !VS.blob) { vsProg(0, 'Сначала запишите голос.', 'err'); return; }
+    VS.busy = true;
+    const btn = $('vsNotesBtn'); btn.disabled = true; btn.textContent = 'ИИ работает…';
+    try {
+        vsProg(1, 'ИИ готовит запись к анализу…'); $('vsProg').scrollIntoView({ block: 'nearest' }); await tick();
+        let frames = VS.off || null;
+        if (!frames && VS.blob) {
+            try { frames = await vsOfflineFrames(p => vsProg(3 + p * 57, 'ИИ анализирует запись…')); } catch (_) { frames = null; }
+            if (frames && frames.filter(f => f[1]).length >= 5) VS.off = frames; else frames = null;
+        }
+        if (!frames) frames = VS.frames;                                  // запасной путь: кадры, снятые во время записи
+        vsProg(62, 'ИИ ищет ноты и паузы…'); await tick();
+        const segs = vsAnalyze(frames);
+        if (!segs.length) { vsProg(0, 'Ноты не найдены: в записи нет чёткого голоса. Пойте громче и ближе к микрофону, по одному звуку.', 'err'); return; }
+
+        vsProg(72, 'ИИ определяет тональность и темп…'); await tick();
+        const first = segs[0].t0;
+        let bpm = parseInt($('tempoSlider').value) || 110;
+        const nb = vsTempo(segs.map(s => s.t0), bpm);
+        if (nb !== bpm) { bpm = nb; $('tempoSlider').value = bpm; $('bpmValue').textContent = bpm; $('tempoSlider').dispatchEvent(new Event('input')); }
+        const beat = 60 / bpm, q = beat / 4;
+        const probe = segs.map(s => ({ note: midiName(Math.min(72, Math.max(48, s.m % 12 + 48))), durationSeconds: s.t1 - s.t0, startTimeOffsetSeconds: s.t0 }));
+        const key = detectKey(probe); let fixed = 0;
+        if (key.fit > 0.8) segs.forEach(s => {                             // неточно спетые ноты вне лада притягиваются к ступеням
+            if (key.scale.includes(((s.m % 12) + 12) % 12)) return;
+            let best = null; for (const d of [-1, 1]) { const c = s.m + d; if (key.scale.includes(((c % 12) + 12) % 12) && (best == null || Math.abs(s.mf - c) < Math.abs(s.mf - best))) best = c; }
+            if (best != null && Math.abs(s.mf - best) < 0.9) { s.m = best; fixed++; }
+        });
+
+        vsProg(84, 'ИИ строит ноты и ритм…'); await tick();
+        const ms = segs.map(s => s.m).sort((a, b) => a - b), shift = Math.round((60 - ms[ms.length >> 1]) / 12) * 12;
+        const rs = segs.map(s => s.rms).sort((a, b) => a - b), top = rs[Math.floor(rs.length * 0.9)] || 1;
+        let prevEnd = 0;
+        const notes = segs.map(s => {
+            let st = Math.round((s.t0 - first) / q) * q, du = Math.max(q, Math.round((s.t1 - s.t0) / q) * q);
+            st = Math.max(st, prevEnd); prevEnd = st + du;
+            let m = s.m + shift; while (m < 48) m += 12; while (m > 72) m -= 12;
+            return { st, du, note: midiName(m), vf: Math.max(0.6, Math.min(1.1, 0.6 + 0.5 * (s.rms / top))) };
+        });
+        notes.forEach((n, i) => { const nx = notes[i + 1]; if (nx) { const g = nx.st - (n.st + n.du); if (g > 0 && g < beat * 0.5) n.du += g; } });   // микро-паузы убираем, настоящие паузы остаются
+        pushHistory();
+        melody = melody.filter(n => n.take !== VS.take && n.takeSupport !== VS.take && n.aiLayer !== 'voice');
+        const base = melody.reduce((m, n) => Math.max(m, n.startTimeOffsetSeconds + n.durationSeconds), 0);
+        const out = notes.map(n => ({ note: n.note, duration: n.du / beat, durationSeconds: n.du, startTimeOffsetSeconds: base + n.st, instrument: currentInstrument, bpm, octave: 0, echo: currentEcho,
+            volumeFactor: n.vf, userPlayed: true, source: 'voice', origin: 'voice', take: VS.take }));
+
+        const step = Math.max(1, Math.ceil(out.length / 10)), chips = $('vsNotes'); chips.innerHTML = '';
+        for (let k = 0; k < out.length; k += step) {                       // готовые ноты переезжают в паттерн порциями
+            const part = out.slice(k, k + step);
+            melody = melody.concat(part); markDirty();
+            chips.insertAdjacentHTML('beforeend', part.map(n => `<span>${n.note}</span>`).join(''));
+            vsProg(90 + 10 * Math.min(1, (k + step) / out.length), `ИИ переносит ноты в паттерн… ${Math.min(out.length, k + step)} из ${out.length}`);
+            await new Promise(r => setTimeout(r, 70));
+        }
+        melody.sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+        markDirty(); renderAnalysis();
+        const pauses = out.filter((n, i) => i && n.startTimeOffsetSeconds - (out[i - 1].startTimeOffsetSeconds + out[i - 1].durationSeconds) > 0.25).length;
+        const msg = `Готово ✓ Нот: ${out.length}, пауз: ${pauses}, ${keyName(key)}, ${bpm} BPM${fixed ? `, исправил неточных нот: ${fixed}` : ''}.`;
+        vsProg(100, msg, 'ok'); vsMsg(msg); setStatus(msg);
+        playMelody(melody);
+    } catch (e) {
+        vsProg(0, 'Не удалось преобразовать запись: ' + ((e && e.message) || e), 'err');
+    } finally {
+        VS.busy = false; btn.disabled = false; btn.textContent = 'Преобразовать';
+    }
 }
 
 function initVoiceStudio() {
