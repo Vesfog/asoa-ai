@@ -110,8 +110,8 @@ button{border:1.5px solid var(--ink)}
 .keyboard{position:relative;height:clamp(130px,24vh,220px);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer;border-top:3px solid var(--ink)}
 .key{position:absolute;top:0;display:none;touch-action:none}
 .key.vis{display:flex}
-.key:not(.black){bottom:0;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 0 8px;background:#ffffff;border:1px solid #000;font-size:11px;font-weight:700;color:#555}
-.key.black{height:62%;z-index:2;background:#111111;border:1px solid #000;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:6px;color:#dcdcdc}
+.key:not(.black){bottom:0;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 0 8px;background:#ffffff;border:1px solid var(--key-line,#000);font-size:11px;font-weight:700;color:#555}
+.key.black{height:62%;z-index:2;background:#111111;border:1px solid var(--key-line,#000);flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:6px;color:#dcdcdc}
 .key b{pointer-events:none}
 .kk{pointer-events:none;font:700 10px/1 monospace;font-style:normal;color:#111;min-height:10px}
 .key.black .kk{color:#d6d6d6}
@@ -652,10 +652,153 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
     .pr-grid-btn:nth-child(n+6) { display: none; }
 }
 
+
+/* ======================================================
+   СТИЛИ САЙТА: «Обычный» (без атрибута) + Минимализм, Мягкий, Стекло, Брутализм.
+   Каждый стиль — набор переменных + правила формы, шрифтов, навигации и расположения.
+====================================================== */
+body[data-skin]{font-family:var(--sk-font)}
+body[data-skin] :is(button,select,input,textarea){font-family:inherit}
+body[data-skin] *{border-radius:var(--sk-r)!important}
+body[data-skin] .key{border-radius:0 0 var(--sk-kr) var(--sk-kr)!important}
+body[data-skin] .key.black{border-radius:0 0 var(--sk-kb) var(--sk-kb)!important}
+body[data-skin] :where(.top,.kb-card,.pat,.side-panel,.more .menu,.say,.vs-prog,.vs-msg){border:var(--sk-bw) solid var(--sk-line);box-shadow:var(--sk-sh)!important}
+body[data-skin] .say{border-left:4px solid var(--accent)}
+body[data-skin] summary{border:var(--sk-bbw) solid var(--sk-bline);box-shadow:var(--sk-bsh)!important}
+body[data-skin] .nb{overflow:hidden}
+body[data-skin] .sec{border-radius:0!important}
+body[data-skin=min] .sec{border-bottom-width:1px}
+body[data-skin=glass] .transport{background:var(--panel-bg);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-skin] .panel-header{border-bottom:var(--sk-bw) solid var(--sk-line)}
+body[data-skin] button{border:var(--sk-bbw) solid var(--sk-bline);box-shadow:var(--sk-bsh)!important}
+body[data-skin] .btn-accent{background:var(--accent)!important;color:var(--on-accent)!important;border-color:var(--accent)!important}
+body[data-skin] .nav button{border:0;border-bottom:3px solid var(--tab,transparent);box-shadow:none!important}
+body[data-skin] .nav button.dock-active{background:var(--tab,var(--accent));color:var(--tab-on,var(--on-accent))}
+body[data-skin] .tb{border:0;border-left:var(--sk-bw) solid var(--sk-line);box-shadow:none!important}
+body[data-skin] .keyboard{border-top:3px solid var(--key-line,var(--ink))}
+body[data-skin] :is(.key:not(.black),.key.black){border-color:var(--key-line,#000)}
+body[data-skin] .pr-overlay,body[data-skin] .side-panel{background:var(--panel-bg)}
+body[data-input=touch][data-skin] :is(button,select,summary,input[type=color]){min-height:44px}
+body[data-input=touch][data-skin] .key{min-height:0}
+body[data-input=touch][data-skin] :is(.nb,.kc-row button,.lk-row button){min-height:0}
+body[data-compact] .app{padding-left:6px;padding-right:6px}
+body[data-compact] .nav button{padding:0 9px;font-size:11.5px}
+
+/* --- Минимализм: тонкие линии, воздух, ничего лишнего --- */
+body[data-skin=min]{--sk-font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--sk-r:6px;--sk-kr:5px;--sk-kb:4px;--sk-bw:1px;--sk-bbw:1px;--sk-line:#e3e3e3;--sk-bline:#d9d9d9;--sk-sh:none;--sk-bsh:none;--key-line:#b8b8b8;
+ --bg:#fafafa;--bg-elevated:#fff;--card:#fff;--card-hover:#f1f1f1;--panel-bg:#fff;--panel-bg-glass:#fff;--dock-bg:#fff;--line:#ececec;--border:#e3e3e3;--text:#1b1b1b;--text-light:#8b8b8b;--accent:#1b1b1b;--accent-2:#555;--accent-soft:rgba(0,0,0,.06);--on-accent:#fff;--ink:#1b1b1b;--paper:#fff;--danger:#c0392b}
+body.dark[data-skin=min]{--sk-line:#2b2b2b;--sk-bline:#363636;--key-line:#555;--bg:#121212;--bg-elevated:#1a1a1a;--card:#1a1a1a;--card-hover:#262626;--panel-bg:#1a1a1a;--panel-bg-glass:#1a1a1a;--dock-bg:#1a1a1a;--line:#2b2b2b;--border:#2b2b2b;--text:#ececec;--text-light:#8d8d8d;--accent:#f0f0f0;--accent-2:#bbb;--accent-soft:rgba(255,255,255,.08);--on-accent:#111;--ink:#ececec;--paper:#1a1a1a;--danger:#e0705f}
+body[data-skin=min] .app{gap:18px}
+body[data-skin=min] .stage{gap:18px}
+body[data-skin=min] .top{background:transparent;border-width:0 0 1px 0}
+body[data-skin=min] .brand h1{font-weight:600;letter-spacing:.02em}
+body[data-skin=min] .nav button{font-weight:500;color:var(--text-light);background:transparent}
+body[data-skin=min] .nav button.dock-active{background:transparent;color:var(--text);border-bottom-color:var(--tab,var(--text))}
+body[data-skin=min] :is(button,select){background:transparent}
+body[data-skin=min] :is(.kb-card,.pat){padding:16px}
+body[data-skin=min] .say{border-width:0 0 0 2px;border-left-color:var(--text);background:transparent}
+body[data-skin=min] .pill{font-weight:500}
+body[data-skin=min] .btn-accent{font-weight:500}
+
+/* --- Мягкий: округлые формы, тёплые пастельные цвета --- */
+body[data-skin=soft]{--sk-font:ui-rounded,'Nunito','SF Pro Rounded','Segoe UI',system-ui,sans-serif;--sk-r:14px;--sk-kr:12px;--sk-kb:9px;--sk-bw:1px;--sk-bbw:1px;--sk-line:#eadfd3;--sk-bline:#e3d5c6;--sk-sh:0 8px 24px rgba(120,85,50,.10);--sk-bsh:0 2px 6px rgba(120,85,50,.10);--key-line:#d6c8b8;
+ --bg:#f6f0e8;--bg-elevated:#fffaf4;--card:#fffaf4;--card-hover:#f6ebdf;--panel-bg:#fffaf4;--panel-bg-glass:#fffaf4;--dock-bg:#fffaf4;--line:#eadfd3;--border:#eadfd3;--text:#4a3c33;--text-light:#9b8a7c;--accent:#e07a5f;--accent-2:#f2a38c;--accent-soft:rgba(224,122,95,.16);--on-accent:#fff;--ink:#4a3c33;--paper:#fffaf4;--danger:#d1495b}
+body.dark[data-skin=soft]{--sk-line:#4b4239;--sk-bline:#54493f;--sk-sh:0 8px 24px rgba(0,0,0,.35);--sk-bsh:0 2px 6px rgba(0,0,0,.3);--key-line:#8d7f70;--bg:#2b2521;--bg-elevated:#363029;--card:#363029;--card-hover:#423a33;--panel-bg:#363029;--panel-bg-glass:#363029;--dock-bg:#363029;--line:#4b4239;--border:#4b4239;--text:#f3e9df;--text-light:#b5a597;--accent:#f2a38c;--accent-2:#e07a5f;--accent-soft:rgba(242,163,140,.18);--on-accent:#3a2418;--ink:#f3e9df;--paper:#363029;--danger:#e8788a}
+body[data-skin=soft] :is(.top,.kb-card,.pat,.side-panel,.more .menu){border-radius:22px!important}
+body[data-skin=soft] :is(.pill,.more summary,.tb,.kb-bar button,.panel-close,.nav button,.nav,.vs-big){border-radius:999px!important}
+body[data-skin=soft] .top{padding:4px 6px;align-items:center}
+body[data-skin=soft] .brand h1{font-weight:800}
+body[data-skin=soft] .nav{padding:4px;gap:4px;border-top:0;flex:1 1 100%;margin-top:2px}
+body[data-skin=soft] .nav button{min-height:38px;font-weight:700;color:var(--text-light);border:0;border-bottom:3px solid var(--tab,transparent)}
+body[data-skin=soft] .tb{border:0;font-weight:700}
+body[data-skin=soft] :is(.kb-card,.pat){padding:16px}
+body[data-skin=soft] .nb{border-radius:16px!important}
+body[data-skin=soft] .nb::before{height:6px}
+body[data-skin=soft] .pill{font-weight:700;padding:12px 20px}
+body[data-skin=soft] .say{border-radius:14px!important;border-left-width:6px}
+
+/* --- Стекло: прозрачные панели, размытие, плавный градиент --- */
+body[data-skin=glass]{--sk-font:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;--sk-r:14px;--sk-kr:10px;--sk-kb:8px;--sk-bw:1px;--sk-bbw:1px;--sk-line:rgba(255,255,255,.75);--sk-bline:rgba(255,255,255,.8);--sk-sh:0 10px 34px rgba(60,70,160,.18);--sk-bsh:none;--key-line:rgba(28,33,69,.5);
+ background:linear-gradient(135deg,#cfe0ff 0%,#eadcff 50%,#ffdbe7 100%) fixed;
+ --bg:rgba(255,255,255,.4);--bg-elevated:rgba(255,255,255,.6);--card:rgba(255,255,255,.58);--card-hover:rgba(255,255,255,.85);--panel-bg:rgba(255,255,255,.82);--panel-bg-glass:rgba(255,255,255,.82);--dock-bg:rgba(255,255,255,.7);--line:rgba(60,70,140,.16);--border:rgba(60,70,140,.18);--text:#1c2145;--text-light:#5d648f;--accent:#5568ff;--accent-2:#8f9bff;--accent-soft:rgba(85,104,255,.16);--on-accent:#fff;--ink:#1c2145;--paper:rgba(255,255,255,.7);--danger:#d6455d}
+body.dark[data-skin=glass]{background:linear-gradient(135deg,#0f1530 0%,#241a3d 50%,#1a2a44 100%) fixed;--sk-line:rgba(255,255,255,.2);--sk-bline:rgba(255,255,255,.22);--sk-sh:0 10px 34px rgba(0,0,0,.4);--key-line:rgba(0,0,0,.5);--bg:rgba(255,255,255,.07);--bg-elevated:rgba(255,255,255,.1);--card:rgba(255,255,255,.09);--card-hover:rgba(255,255,255,.16);--panel-bg:rgba(22,26,50,.86);--panel-bg-glass:rgba(22,26,50,.86);--dock-bg:rgba(22,26,50,.78);--line:rgba(255,255,255,.14);--border:rgba(255,255,255,.16);--text:#eef0ff;--text-light:#a9b0d6;--accent:#8f9bff;--accent-2:#5568ff;--accent-soft:rgba(143,155,255,.2);--on-accent:#0e1330;--ink:#eef0ff;--paper:rgba(255,255,255,.08);--danger:#ff7a8f}
+body[data-skin=glass] :is(.top,.kb-card,.pat,.side-panel,.more .menu){-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);border-radius:20px!important}
+body[data-skin=glass] .pr-overlay{background:#eceffb}
+body.dark[data-skin=glass] .pr-overlay{background:#13172b}
+body[data-skin=glass] .brand h1{font-weight:700}
+body[data-skin=glass] .nav button{color:var(--text-light);font-weight:600}
+body[data-skin=glass] :is(button,select){background:var(--card)}
+body[data-skin=glass] .nav button,body[data-skin=glass] .tb{background:transparent}
+body[data-skin=glass] :is(.pill,.tb,.kb-bar button,.panel-close,.more summary){border-radius:12px!important}
+body[data-skin=glass] .say{background:var(--card);border-radius:12px!important}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){body[data-skin=glass]{--card:rgba(255,255,255,.9);--panel-bg:#fff}body.dark[data-skin=glass]{--card:#232846;--panel-bg:#1a1e38}}
+
+/* --- Брутализм: толстые контуры, жёсткие тени, смелые цвета --- */
+body[data-skin=brut]{--sk-font:ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,'Courier New',monospace;--sk-r:0px;--sk-kr:0px;--sk-kb:0px;--sk-bw:3px;--sk-bbw:2.5px;--sk-line:#000;--sk-bline:#000;--sk-sh:6px 6px 0 #000;--sk-bsh:3px 3px 0 #000;--key-line:#000;
+ --bg:#fdf1c0;--bg-elevated:#fff;--card:#fff;--card-hover:#ffe27a;--panel-bg:#fff;--panel-bg-glass:#fff;--dock-bg:#fff;--line:#000;--border:#000;--text:#000;--text-light:#3d3d3d;--accent:#ff5a36;--accent-2:#ffd23f;--accent-soft:rgba(255,90,54,.2);--on-accent:#000;--ink:#000;--paper:#fff;--danger:#e11d48}
+body.dark[data-skin=brut]{--sk-line:#f5f5f5;--sk-bline:#f5f5f5;--sk-sh:6px 6px 0 #f5f5f5;--sk-bsh:3px 3px 0 #f5f5f5;--bg:#161616;--bg-elevated:#242424;--card:#242424;--card-hover:#3a3a3a;--panel-bg:#1f1f1f;--panel-bg-glass:#1f1f1f;--dock-bg:#242424;--line:#f5f5f5;--border:#f5f5f5;--text:#f5f5f5;--text-light:#b8b8b8;--accent:#ffd23f;--accent-2:#ff5a36;--accent-soft:rgba(255,210,63,.2);--on-accent:#000;--ink:#f5f5f5;--paper:#242424;--danger:#ff5c7a}
+body[data-skin=brut] :is(button,summary,.nb,.say){font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+body[data-skin=brut] :is(button,summary):not(.key):not(.nav button):active{transform:translate(3px,3px);box-shadow:none!important}
+body[data-skin=brut] :is(.pill,.kb-bar button,.more summary):hover{background:var(--accent-2);color:#000}
+body[data-skin=brut] .brand h1{font-weight:900;text-transform:uppercase;letter-spacing:.06em}
+body[data-skin=brut] .nav button{border-left:var(--sk-bw) solid var(--sk-line);text-transform:uppercase;letter-spacing:.03em;font-weight:800}
+body[data-skin=brut] .nav button.dock-active{background:var(--tab,var(--accent));color:var(--tab-on,var(--on-accent))}
+body[data-skin=brut] .nb{box-shadow:3px 3px 0 var(--sk-line)!important;border-width:2.5px;border-color:var(--sk-line)}
+body[data-skin=brut] .nb b{font-weight:900}
+body[data-skin=brut] .nb.sel{box-shadow:none!important}
+body[data-skin=brut] .keyboard{border-top-width:5px}
+body[data-skin=brut] .pat-body,body[data-skin=brut] .side-panel{scrollbar-color:var(--text) transparent}
+body[data-skin=brut] .nb small,body[data-skin=brut] .hint{text-transform:none;letter-spacing:0}
+
+/* телефон: плавающая навигация для «Мягкий»/«Стекло», плотная — для остальных */
+@media (max-width:720px){
+ body[data-skin=min] .nav{border-top:1px solid var(--sk-line)}
+ body[data-skin=brut] .nav{border-top:var(--sk-bw) solid var(--sk-line)}
+ body[data-skin=soft] .nav,body[data-skin=glass] .nav{left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));border:var(--sk-bw) solid var(--sk-line);box-shadow:var(--sk-sh)!important;border-radius:999px!important;padding:4px;background:var(--dock-bg)}
+ body[data-skin=glass] .nav{-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-radius:20px!important}
+ body[data-skin=glass] .top{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:var(--panel-bg)}   /* backdrop-filter у предка ломает position:fixed у нижней навигации */
+ body[data-skin=soft] .nav button{min-height:42px}
+ body[data-skin=soft] .app,body[data-skin=glass] .app{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+ body[data-skin=soft] .side-panel,body[data-skin=glass] .side-panel{left:10px;right:10px;bottom:calc(78px + env(safe-area-inset-bottom));border-width:var(--sk-bw)}
+ body[data-skin=min] .side-panel,body[data-skin=brut] .side-panel{border-width:var(--sk-bw) 0 0 0}
+ body[data-skin=soft] .more .menu,body[data-skin=glass] .more .menu{bottom:calc(86px + env(safe-area-inset-bottom))}
+ body[data-skin=brut] .top .tb{font-size:10.5px}
+}
+@media (max-width:420px){body[data-skin] .tb{font-size:10.5px;padding:0 8px}body[data-skin] .brand{padding:6px 8px}}
+
+/* --- настройки: выбор оформления --- */
+.skin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.skin-btn{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:5px;padding:8px;text-align:left;height:auto;width:100%}
+.skin-btn b{font-size:13px}
+.skin-btn small{font-size:10.5px;color:var(--text-light);line-height:1.3;font-weight:400;text-transform:none;letter-spacing:0}
+.skin-btn.active{background:var(--accent)!important;color:var(--on-accent)!important}
+.skin-btn.active small{color:inherit!important;opacity:.85}
+.sk-prev{display:flex;gap:4px;align-items:stretch;width:100%;height:34px;padding:5px;pointer-events:none}
+.sk-prev i{flex:1;display:block}
+.sk-normal{background:#fffefa;border:2px solid #000}.sk-normal i{background:#111}.sk-normal,.sk-normal i{border-radius:0!important}
+.sk-min{background:#fff;border:1px solid #ddd}.sk-min i{background:#fff;border:1px solid #cfcfcf}.sk-min,.sk-min i{border-radius:5px!important}
+.sk-soft{background:#fffaf4;border:1px solid #eadfd3;box-shadow:0 4px 10px rgba(120,85,50,.15)!important}.sk-soft i{background:#e07a5f}.sk-soft{border-radius:14px!important}.sk-soft i{border-radius:999px!important}
+.sk-glass{background:linear-gradient(135deg,#cfe0ff,#eadcff 55%,#ffdbe7);border:1px solid rgba(255,255,255,.9)}.sk-glass i{background:rgba(255,255,255,.65);border:1px solid rgba(255,255,255,.9)}.sk-glass,.sk-glass i{border-radius:10px!important}
+.sk-brut{background:#ffd23f;border:3px solid #000;box-shadow:3px 3px 0 #000!important}.sk-brut i{background:#fff;border:2px solid #000}.sk-brut,.sk-brut i{border-radius:0!important}
+
+/* --- экран загрузки при смене стиля --- */
+.skin-loader{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:#f3f3f3;color:#111;padding:24px;opacity:0;pointer-events:none;transition:opacity .25s}
+body.dark .skin-loader{background:#161616;color:#eee}
+.skin-loader.show{opacity:1;pointer-events:auto}
+.skin-loader[hidden]{display:none}
+.sl-box{width:min(420px,100%);text-align:center}
+.sl-title{font:700 clamp(22px,5vw,30px)/1.2 system-ui,sans-serif;margin-bottom:8px}
+.sl-sub{font:500 14px/1.4 system-ui,sans-serif;opacity:.75;min-height:20px;margin-bottom:18px}
+.sl-bar{height:16px;border:2px solid currentColor;background:transparent;overflow:hidden}
+.sl-bar i{display:block;height:100%;width:1%;background:currentColor}
+.sl-pct{font:700 15px system-ui,sans-serif;margin-top:10px}
+.skin-loader,.skin-loader *{border-radius:0!important;box-shadow:none!important}
 </style>
 </head>
 <body>
+<script>try{var __k=localStorage.getItem("asoa_skin");if(__k&&__k!=="normal")document.body.dataset.skin=__k}catch(e){}</script>
 
+<div class="skin-loader" id="skinLoader" hidden role="status" aria-live="polite"><div class="sl-box"><div class="sl-title">Подождите…</div><div class="sl-sub" id="slSub"></div><div class="sl-bar"><i id="slFill"></i></div><div class="sl-pct" id="slPct">1%</div></div></div>
 <div class="app">
   <header class="top">
     <div class="brand"><h1>Asoa AI</h1></div>
@@ -739,9 +882,14 @@ body, .side-panel, .dock, .keyboard-card, .melody-display, .mood-btn, .track-row
 <aside class="side-panel" id="panel-look">
     <div class="panel-header"><h2>Настройки</h2><button class="panel-close">Закрыть</button></div>
     <div class="panel-section">
-        <div class="section-title">Стиль сайта</div>
+        <div class="section-title">Оформление сайта</div>
+        <div class="skin-grid" id="skinGrid"></div>
+        <div class="hint">Меняет форму, шрифты и расположение всего сайта под ваше устройство. При смене появится экран загрузки; цвета сайта сбросятся к цветам выбранного оформления.</div>
+    </div>
+    <div class="panel-section">
+        <div class="section-title">Цвета сайта</div>
         <div class="look-styles" id="lookStyles"></div>
-        <div class="hint">Меняет весь сайт целиком. Светлая и тёмная тема переключаются кнопкой в шапке.</div>
+        <div class="hint">Меняет только цвета и подходит к любому оформлению. Светлая и тёмная тема переключаются кнопкой в шапке.</div>
     </div>
     <div class="panel-section">
         <div class="section-title">Меню: стиль и цвет</div>
@@ -6278,7 +6426,7 @@ function init() {
     initEnergyCurveUI();
     renderEnergyCurve();
     initInstrumentCategoryFilter();
-    initVoiceStudio(); initKeyConfig(); initPattern(); initLook(); initAiBrain();
+    initVoiceStudio(); initKeyConfig(); initPattern(); initLook(); initSkins(); initAiBrain();
 }
 
 /* ======================================================
@@ -7179,6 +7327,83 @@ function initAiBrain() {
         b.classList.toggle('active', LIVE.on); b.textContent = 'ИИ-партнёр: ' + (LIVE.on ? 'вкл' : 'выкл');
         setStatus(LIVE.on ? 'ИИ-партнёр включён: играйте, а когда остановитесь, он ответит своей фразой.' : 'ИИ-партнёр выключен.');
     });
+}
+
+/* ======================================================
+   ОФОРМЛЕНИЕ САЙТА — выбор стиля с экраном загрузки и подстройкой под устройство.
+   «Обычный» = без атрибута data-skin. Остальные включаются через body[data-skin].
+====================================================== */
+const SKIN_KEY = 'asoa_skin';
+const SKINS = {
+    normal: { n: 'Обычный',    d: 'Геометрический: прямые линии, чёткие углы' },
+    min:    { n: 'Минимализм', d: 'Тонкие линии, много воздуха, ничего лишнего' },
+    soft:   { n: 'Мягкий',     d: 'Скруглённые формы, тёплые пастельные цвета' },
+    glass:  { n: 'Стекло',     d: 'Прозрачные панели и плавный градиент' },
+    brut:   { n: 'Брутализм',  d: 'Толстые контуры, жёсткие тени, смелые цвета' }
+};
+const DEV_NAMES = { phone: 'телефон', tablet: 'планшет', desktop: 'компьютер' };
+let skinBusy = false;
+const curSkin = () => document.body.dataset.skin || 'normal';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const raf2 = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+function adaptToDevice() {
+    const w = innerWidth, h = innerHeight, s = Math.min(w, h), b = document.body;
+    b.dataset.device = s < 500 ? 'phone' : (w < 1100 ? 'tablet' : 'desktop');
+    b.dataset.input = matchMedia('(hover: none) and (pointer: coarse)').matches ? 'touch' : 'mouse';
+    b.dataset.orient = w > h ? 'land' : 'port';
+    if (typeof layoutKeyboard === 'function') layoutKeyboard();
+}
+function fitCheck() {                                   // страховка: если что-то шире экрана — включаем компактный режим
+    const b = document.body; b.removeAttribute('data-compact');
+    if (document.documentElement.scrollWidth > innerWidth + 1) b.dataset.compact = '1';
+}
+function renderSkinGrid() {
+    const cur = curSkin();
+    $('skinGrid').innerHTML = Object.entries(SKINS).map(([id, s]) =>
+        `<button class="skin-btn${cur === id ? ' active' : ''}" data-skin-id="${id}" aria-pressed="${cur === id}"><span class="sk-prev sk-${id}"><i></i><i></i><i></i></span><b>${s.n}</b><small>${s.d}</small></button>`).join('');
+}
+function slTo(v, ms) {                                  // плавная полоска загрузки
+    const fill = $('slFill'), pct = $('slPct'), reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return new Promise(res => {
+        const from = slTo.v || 1, t0 = performance.now(), dur = reduce ? ms * 0.3 : ms;
+        const step = now => {
+            const k = Math.min(1, (now - t0) / dur), x = from + (v - from) * k;
+            fill.style.width = x + '%'; pct.textContent = Math.max(1, Math.round(x)) + '%'; slTo.v = x;
+            k < 1 ? requestAnimationFrame(step) : res();
+        };
+        requestAnimationFrame(step);
+    });
+}
+async function switchSkin(id) {
+    if (skinBusy || !SKINS[id] || id === curSkin()) return;
+    skinBusy = true;
+    const L = $('skinLoader'), sub = $('slSub'), name = SKINS[id].n;
+    L.hidden = false; slTo.v = 1; $('slFill').style.width = '1%'; $('slPct').textContent = '1%';
+    sub.textContent = `Готовлю стиль «${name}»…`;
+    requestAnimationFrame(() => L.classList.add('show'));
+    try {
+        await slTo(18, 350); if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        sub.textContent = 'Применяю оформление…'; await slTo(45, 400);
+        if (id === 'normal') delete document.body.dataset.skin; else document.body.dataset.skin = id;
+        try { localStorage.setItem(SKIN_KEY, id); } catch (_) {}
+        look.site = 'classic'; applyLook(true);          // цвета берутся из самого стиля; палитру можно выбрать заново
+        await raf2();
+        adaptToDevice(); sub.textContent = `Подстраиваю под устройство: ${DEV_NAMES[document.body.dataset.device]}…`; await slTo(72, 400);
+        sub.textContent = 'Проверяю размеры экрана…'; await slTo(92, 350);
+        await raf2(); fitCheck(); window.dispatchEvent(new Event('resize'));
+        sub.textContent = 'Готово'; await slTo(100, 200); await sleep(180);
+    } finally {
+        L.classList.remove('show'); await sleep(280); L.hidden = true;
+        renderSkinGrid(); applyLook(); skinBusy = false;
+    }
+}
+function initSkins() {
+    adaptToDevice(); fitCheck(); renderSkinGrid();
+    $('skinGrid').addEventListener('click', e => { const b = e.target.closest('[data-skin-id]'); if (b) switchSkin(b.dataset.skinId); });
+    let rt = 0; const onResize = () => { clearTimeout(rt); rt = setTimeout(() => { adaptToDevice(); fitCheck(); }, 150); };
+    addEventListener('resize', onResize); addEventListener('orientationchange', onResize);
+    new MutationObserver(renderSkinGrid).observe(document.body, { attributes: true, attributeFilter: ['data-skin'] });
 }
 
 window.onload = init;
