@@ -163,6 +163,7 @@ button{border:1.5px solid var(--ink)}
 .vs-prog-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
 .vs-prog.err{border-color:var(--danger)}.vs-prog.err .vs-prog-bar i{background:var(--danger)}
 #vsNotesBtn:disabled{opacity:.7;cursor:progress}
+#aiUndoImprove:disabled{opacity:.45}
 .more{position:relative}
 .more summary{list-style:none;cursor:pointer;padding:11px 16px;border:1.5px solid var(--ink);background:var(--card);font-size:13px;font-weight:700}
 .more summary::-webkit-details-marker{display:none}
@@ -835,6 +836,7 @@ body.dark .skin-loader{background:#161616;color:#eee}
       <button id="playBtn" class="pill btn-accent">Играть</button>
       <button id="stopBtn" class="pill">Стоп</button>
       <button id="aiBtn" class="pill btn-accent" title="ИИ сочиняет музыку или дополняет вашу мелодию">Создать музыку</button>
+      <button id="improveBtn" class="pill" title="ИИ исправляет ритм и ноты вне лада, завершает фразы и добавляет динамику, не меняя вашу идею">Улучшить мелодию</button>
       <button id="openPianoRollBtn" class="pill" title="Двигайте и правьте ноты на сетке">Редактор нот</button>
       <details class="more" id="moreMenu"><summary>Ещё</summary><div class="menu">
         <button class="menu-close" id="moreClose" aria-label="Закрыть меню">× Закрыть</button>
@@ -1049,6 +1051,8 @@ body.dark .skin-loader{background:#161616;color:#eee}
         <div class="section-title">Что сделать с музыкой</div>
         <div class="button-group" id="aiActions" style="grid-template-columns:1fr">
             <button id="aiMakeBtn" class="btn-accent" title="Создать новую композицию или дополнить вашу мелодию">Создать музыку</button>
+            <button id="aiImproveBtn" title="Исправить ритм и ноты вне лада, завершить фразы, добавить динамику">Улучшить мелодию</button>
+            <button id="aiUndoImprove" disabled title="Вернуть мелодию такой, какой она была до улучшения">Вернуть мою мелодию</button>
             <button id="aiContBtn" title="Продолжить трек в том же стиле">Продолжить мелодию</button>
             <button id="aiHarmBtn" title="Аккорды под вашу мелодию">Добавить гармонию</button>
             <button id="aiBassBtn" title="Басовая линия под мелодию">Добавить бас</button>
@@ -3661,9 +3665,7 @@ function aiFullControl() {
     /* Определяем стиль — при наличии нот пользователя берём из них */
     if (mode !== 'normal') {
         const refNotes = hasNew ? newUser : allUser;
-        const detected = detectStyleFromUserNotes(refNotes);
-        currentStyles = [detected];
-        updateActiveButtons();
+        adoptMood(refNotes);
     }
     const profile = prepareAiProfile();
 
@@ -3829,6 +3831,7 @@ function aiFullControl() {
 
         newNotes.sort((a,b)=>a.startTimeOffsetSeconds-b.startTimeOffsetSeconds);
         newNotes.forEach(n=>n.moodColor=profile.color);
+        masterPass(newNotes);
         applyEnding(profile,newNotes,bpm);
         lastEndingNoteRefs = newNotes.filter(n=>n.endingTag);
         melody = melody.concat(newNotes).sort((a,b)=>a.startTimeOffsetSeconds-b.startTimeOffsetSeconds);
@@ -3837,10 +3840,10 @@ function aiFullControl() {
         markDirty();
         if (typeof renderAnalysis === 'function') renderAnalysis();
         const forms = [...new Set(structure.map(x => x.label.replace(/ \d+$/, '')))].join(' → ');
-        aiThoughts([`Настроение «${profile.label}»: ${bpm} BPM, ${keyName(COMP.key)}.`,
+        aiThoughts([`${moodChosen ? 'Настроение, которое вы выбрали' : 'Настроение'} «${profile.label}»: ${bpm} BPM, ${keyName(COMP.key)}.`,
             `Гармония: ${profile.chordProgression.map(c => c.label).join(' → ')}.`,
             `Форма: ${forms}.`,
-            'Придумал мотив куплета, отдельный контрастный мотив припева и бриджа; куплеты повторяют мотив с вариациями, а фразы заканчиваются каденцией.',
+            motifThought(),
             `Готово: ${newNotes.length} нот. Нажмите «Играть».`]);
     }, 420);
 }
@@ -3993,6 +3996,7 @@ function buildMoodGrid() {
             /* Мультивыбор: клик переключает стиль в наборе выбранных.
                Можно выбрать сразу несколько — ИИ смешает их характеры
                в один трек. Нельзя снять последний оставшийся выбор. */
+            moodChosen = true;
             const idx = currentStyles.indexOf(key);
             if (idx !== -1) {
                 if (currentStyles.length > 1) currentStyles.splice(idx, 1);
@@ -7139,6 +7143,8 @@ const COMP = {
     key: { tonic: 0, minor: false, scale: [0, 2, 4, 5, 7, 9, 11] }, motifs: {}, group: 'A', bar: 0, last: null, center: null, profile: null, rnd: Math.random, occ: {},
     reset(profile) {
         this.profile = profile; this.motifs = {}; this.occ = {}; this.last = null; this.bar = 0; this.center = null; this.rnd = Math.random;
+        BRAIN_LOG = { motifs: [] };
+        this.swing = Math.max(0, ...currentStyles.map(k => ({ jazz: 0.16, nostalgic: 0.07, folk: 0.05, romantic: 0.04, happy: 0.03 })[k] || 0));
         const r = /^([A-G]#?)(m(?!aj)|dim)?/.exec((profile.chordProgression[0] || {}).root || 'C') || [];
         const sc = new Set(); profile.chordProgression.forEach(c => c.notes.forEach(n => sc.add(pcOf(n))));
         this.key = { tonic: Math.max(0, PC.indexOf(r[1] || 'C')), minor: !!r[2], scale: [...sc] };
@@ -7148,54 +7154,8 @@ const COMP = {
         this.group = g; this.bar = 0; this.last = null; this.occ[g] = (this.occ[g] || 0) + 1;
         this.rnd = rng32(g.charCodeAt(0) * 977 + (g === 'A' ? this.occ[g] * 131 : 0));   // припев повторяется «крючком», куплеты слегка меняются
     },
-    motif() { return this.motifs[this.group] || (this.motifs[this.group] = genMotif(this.profile, this.group)); }
+    motif() { return this.motifs[this.group] || (this.motifs[this.group] = bestMotif(this.profile, this.group)); }
 };
-
-/* Один такт мелодии: мотив → вариация → секвенция → каденция */
-function smartBar(chord, t0, t1, beat, bpm, profile, out) {
-    const C = COMP, m = C.motif(), pos = C.bar % 4, len = m.dur.length;
-    const sc = new Set(C.key.scale), S = []; for (let i = 3; i <= 23; i++) if (sc.has(i % 12)) S.push(i);
-    if (!S.length) return;
-    const ct = new Set(chord.notes.map(pcOf));
-    const near = idx => { let b = 0, bd = 99; S.forEach((v, k) => { const d = Math.abs(v - idx); if (d < bd) { bd = d; b = k; } }); return b; };
-    const ctr = C.center != null ? C.center : (C.group === 'B' ? 14 : C.group === 'C' ? 10 : 12);
-    let d = C.last != null ? C.last : near(chord.notes.map(idxOf).filter(i => i >= 3).reduce((a, i) => Math.abs(i - ctr) < Math.abs(a - ctr) ? i : a, ctr));
-    let bp = 0;
-    for (let i = 0; i < len; i++) {
-        let dur = m.dur[i], st = m.steps[i];
-        const last = i === len - 1;
-        if (pos === 1 && last) st = -st || -1;                          // ответ: хвост фразы идёт вниз
-        if (pos === 2 && i === 0) st += 1 + (C.rnd() < 0.4 ? 1 : 0);      // секвенция: мотив выше
-        if (pos === 3 && i >= len - 2) st = -Math.abs(st || 1);          // каденция: спуск к опоре
-        if (C.rnd() < (profile.randomness || 0) * 0.4) st += C.rnd() < 0.5 ? -1 : 1;
-        d = Math.max(0, Math.min(S.length - 1, d + Math.max(-3, Math.min(3, st))));
-        const strong = bp % 2 === 0 || i === 0;
-        if (strong) {                                                    // сильная доля — тон аккорда
-            let bk = d, bd = 99;
-            for (let k = Math.max(0, d - 2); k <= Math.min(S.length - 1, d + 2); k++) if (ct.has(S[k] % 12) && Math.abs(k - d) < bd) { bd = Math.abs(k - d); bk = k; }
-            d = bk;
-        }
-        if (last && pos === 3) {                                         // каденция: тоника/терция и длинная нота
-            const tg = chord.notes.slice(0, 3).map(idxOf).filter(x => x >= 3);
-            if (tg.length) d = near(tg.reduce((a, x) => Math.abs(x - S[d]) < Math.abs(a - S[d]) ? x : a, tg[0]));
-            dur = Math.max(dur, 4 - bp);
-        }
-        const rest = !strong && !last && C.rnd() < (profile.silenceProbability || 0) * 0.7;   // «дыхание»
-        const ts = t0 + bp * beat;
-        if (!rest && ts < t1 - 0.01) {
-            dur = Math.min(dur, (t1 - ts) / beat + 0.001);
-            const ef = energyFactorAt(profile, ts);
-            let vf = (strong ? 0.95 : 0.78) + pos * 0.03 + (C.rnd() * 0.08 - 0.04);
-            if (C.rnd() < (profile.accentProbability || 0) * (strong ? 1.6 : 1)) vf *= 1.25;
-            vf *= ef * ((profile.__emphasis && profile.__emphasis.melody) || 1);
-            out.push({ note: PR_PITCHES[S[d]], duration: dur, durationSeconds: dur * beat * (profile.sustainStretch || 1) * (0.8 + ef * 0.4),
-                       startTimeOffsetSeconds: ts, instrument: profile.instruments.melody, bpm, layer: 'melody',
-                       octave: profile.melodyOctave, echo: profile.echoMode, volumeFactor: Math.min(1.4, vf) });
-        }
-        bp += m.dur[i];
-    }
-    C.last = d; C.bar++;
-}
 
 /* Мотив из ваших нот: ритм и контур в ступенях лада */
 function motifFromNotes(notes, key, beat) {
@@ -7250,7 +7210,7 @@ function aiThoughts(lines) {
 }
 function harmonyThoughts(count, what) {
     const k = BRAIN.key; if (!k) return [`Готово: ${count} нот.`];
-    return [`Слушаю ваши ноты: ${keyName(k)}${k.conf > 0.08 ? '' : ' (тональность неочевидна)'}.`,
+    return [`Слушаю ваши ноты: ${keyName(k)}${k.conf > 0.08 ? '' : ' (тональность неочевидна)'}. ${moodChosen && COMP.profile ? 'Настроение — ваше: «' + COMP.profile.label + '».' : ''}`,
             `Подбираю аккорды по функциям: ${BRAIN.plan.map(c => c.label).join(' → ')}.`,
             `Готово: ${what}. Ваша мелодия не тронута.`];
 }
@@ -7263,7 +7223,7 @@ function aiContinueSmart() {
     pushHistory();
     melody = rest;
     const key = detectKey(base);
-    currentStyles = [detectStyleFromUserNotes(base)]; updateActiveButtons();
+    adoptMood(base);
     const profile = prepareAiProfile();
     COMP.key = { tonic: key.tonic, minor: key.minor, scale: key.scale };
     const bpm = base[0].bpm || profile.bpmBase, beat = 60 / bpm;
@@ -7284,7 +7244,7 @@ function aiContinueSmart() {
     melody = melody.concat(out).sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
     $('chordBadge').textContent = plan.map(c => c.label).join(' - ');
     markDirty(); renderAnalysis();
-    aiThoughts([`Слушаю вашу мелодию: ${keyName(key)}, ${bpm} BPM, настроение «${profile.label}».`,
+    aiThoughts([`Слушаю вашу мелодию: ${keyName(key)}, ${bpm} BPM. ${moodNote(profile)}`,
         mo ? `Нашёл мотив из ${mo.dur.length} нот — буду развивать именно его.` : 'Явного мотива нет — придумаю свой в вашей тональности.',
         `Строю 8 тактов: вопрос → ответ → секвенция → каденция. Гармония: ${plan.map(c => c.label).join(' → ')}.`,
         `Готово: ${out.length} нот. Повторное нажатие заменит это продолжение.`]);
@@ -7321,6 +7281,8 @@ function liveReply() {
     aiThoughts([`Слышу: ${keyName(key)}${mo ? ', мотив из ' + mo.dur.length + ' нот' : ''}. Отвечаю фразой…`]);
 }
 function initAiBrain() {
+    ['improveBtn', 'aiImproveBtn'].forEach(id => $(id).addEventListener('click', aiImproveMelody));
+    $('aiUndoImprove').addEventListener('click', aiUndoImprove);
     const b = $('liveBtn');
     b.addEventListener('click', () => {
         LIVE.on = !LIVE.on; LIVE.phrase = []; LIVE.hist = []; clearTimeout(LIVE.timer);
@@ -7404,6 +7366,254 @@ function initSkins() {
     let rt = 0; const onResize = () => { clearTimeout(rt); rt = setTimeout(() => { adaptToDevice(); fitCheck(); }, 150); };
     addEventListener('resize', onResize); addEventListener('orientationchange', onResize);
     new MutationObserver(renderSkinGrid).observe(document.body, { attributes: true, attributeFilter: ['data-skin'] });
+}
+
+/* ======================================================
+   «ГЕНИЙ»: выбор лучшего мотива из десятков вариантов, контрмелодия, кульминация,
+   инверсия в бридже, свинг по настроению, «мастер-проход» и кнопка «Улучшить мелодию».
+   Настроение, выбранное вами, всегда главнее автоопределения.
+====================================================== */
+let moodChosen = false;
+let BRAIN_LOG = { motifs: [] };
+let IMPROVE_BACKUP = null;
+function adoptMood(notes) { if (!moodChosen) { currentStyles = [detectStyleFromUserNotes(notes)]; updateActiveButtons(); } }
+function moodNote(profile) {
+    return moodChosen ? `Настроение, которое вы выбрали: «${profile.label}».` : `Настроение не выбрано — определил по вашим нотам: «${profile.label}».`;
+}
+function motifThought() {
+    const m = BRAIN_LOG.motifs; if (!m.length) return 'Мотивы придуманы по характеру настроения.';
+    const total = m.reduce((a, x) => a + x.tried, 0);
+    return `Придумал мотивов: ${m.length}. Рассмотрел ${total} вариантов и оставил лучшие по оценке (плавность, диапазон, завершённость). В припеве — кульминация, в бридже — инверсия мотива, добавлена контрмелодия.`;
+}
+
+/* Оценка мелодии: плавность, скачки, диапазон, форма, каденция */
+function scoreMelody(mel, prog) {
+    if (mel.length < 6) return -50;
+    mel = mel.slice().sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+    const idx = mel.map(n => PR_PITCHES.indexOf(n.note)), n = idx.length;
+    let step = 0, leap = 0, big = 0, turns = 0, lastDir = 0, run = 1, maxRun = 1;
+    for (let i = 1; i < n; i++) {
+        const d = idx[i] - idx[i - 1], a = Math.abs(d);
+        if (a > 0 && a <= 2) step++; if (a >= 5) leap++; if (a >= 9) big++;
+        if (a === 0) { run++; maxRun = Math.max(maxRun, run); } else run = 1;
+        const dir = Math.sign(d); if (dir && lastDir && dir !== lastDir) turns++; if (dir) lastDir = dir;
+    }
+    const uniq = new Set(idx).size, range = Math.max(...idx) - Math.min(...idx);
+    const durs = new Set(mel.map(x => +x.duration.toFixed(2))).size, peak = Math.max(...idx), peakCount = idx.filter(v => v === peak).length;
+    let s = 6 * step / (n - 1) - 5 * leap / (n - 1) - 8 * big / (n - 1) - Math.max(0, maxRun - 2) * 1.2;
+    s += 2 * Math.min(uniq, 7) / 7 - Math.abs(range - 10) * 0.18 + ((durs >= 2 && durs <= 4) ? 1.2 : -0.5);
+    s += 2 - Math.abs(turns / Math.max(1, n - 2) - 0.4) * 5 + (peakCount <= 2 ? 1.5 : -1);
+    const lastCh = prog[7 % prog.length]; if (lastCh && new Set(lastCh.notes.map(pcOf)).has(pcOf(mel[n - 1].note))) s += 1.5;
+    return s;
+}
+/* Мотив выбирается как лучший из многих: пробуем 14 вариантов на 8 тактах и оцениваем */
+function bestMotif(profile, g) {
+    const save = { bar: COMP.bar, last: COMP.last, rnd: COMP.rnd, motifs: COMP.motifs, group: COMP.group };
+    const bpm = profile.bpmBase || 100, beat = 60 / bpm, prog = profile.chordProgression;
+    let best = null, bs = -1e9, tried = 0;
+    for (let k = 0; k < 14; k++) {
+        const m = genMotif(profile, g); tried++;
+        COMP.motifs = { [g]: m }; COMP.group = g; COMP.bar = 0; COMP.last = null; COMP.rnd = rng32(777 + k);
+        const out = [];
+        for (let b = 0; b < 8; b++) smartBar(prog[b % prog.length], b * 4 * beat, (b + 1) * 4 * beat, beat, bpm, profile, out);
+        const sc = scoreMelody(out.filter(n => n.layer === 'melody'), prog);
+        if (sc > bs) { bs = sc; best = m; }
+    }
+    Object.assign(COMP, save);
+    BRAIN_LOG.motifs.push({ g, tried, score: bs });
+    return best;
+}
+
+/* Один такт: мотив → вариация → секвенция → каденция; плюс кульминация, инверсия, свинг, контрмелодия */
+function smartBar(chord, t0, t1, beat, bpm, profile, out) {
+    const C = COMP, m = C.motif(), pos = C.bar % 4, len = m.dur.length, g = C.group, occ = C.occ[g] || 1;
+    const sc = new Set(C.key.scale), S = []; for (let i = 3; i <= 23; i++) if (sc.has(i % 12)) S.push(i);
+    if (!S.length) return;
+    const ct = new Set(chord.notes.map(pcOf));
+    const near = idx => { let b = 0, bd = 99; S.forEach((v, k) => { const d = Math.abs(v - idx); if (d < bd) { bd = d; b = k; } }); return b; };
+    const lift = g === 'B' ? (occ >= 3 ? 3 : occ === 2 ? 2 : 1) : 0;               // припев с каждым разом выше
+    const ctr = (C.center != null ? C.center : (g === 'B' ? 13 : g === 'C' ? 10 : 12)) + (C.center != null ? 0 : lift);
+    const inv = g === 'C';                                                         // бридж: мотив «вверх ногами»
+    let d = C.last != null ? C.last : near(chord.notes.map(idxOf).filter(i => i >= 3).reduce((a, i) => Math.abs(i - ctr) < Math.abs(a - ctr) ? i : a, ctr));
+    let bp = 0; const emit = [];
+    for (let i = 0; i < len; i++) {
+        let dur = m.dur[i], st = inv ? -m.steps[i] : m.steps[i];
+        const last = i === len - 1;
+        if (pos === 1 && last) st = -st || -1;
+        if (pos === 2 && i === 0) st += 1 + (C.rnd() < 0.4 ? 1 : 0);
+        if (pos === 3 && i >= len - 2) st = -Math.abs(st || 1);
+        if (C.rnd() < (profile.randomness || 0) * 0.4) st += C.rnd() < 0.5 ? -1 : 1;
+        d = Math.max(0, Math.min(S.length - 1, d + Math.max(-3, Math.min(3, st))));
+        const strong = bp % 2 === 0 || i === 0;
+        if (strong) {
+            let bk = d, bd = 99;
+            for (let k = Math.max(0, d - 2); k <= Math.min(S.length - 1, d + 2); k++) if (ct.has(S[k] % 12) && Math.abs(k - d) < bd) { bd = Math.abs(k - d); bk = k; }
+            d = bk;
+        }
+        if (last && pos === 3) {
+            const tg = chord.notes.slice(0, 3).map(idxOf).filter(x => x >= 3);
+            if (tg.length) d = near(tg.reduce((a, x) => Math.abs(x - S[d]) < Math.abs(a - S[d]) ? x : a, tg[0]));
+            dur = Math.max(dur, 4 - bp);
+        }
+        const rest = !strong && !last && C.rnd() < (profile.silenceProbability || 0) * 0.7;
+        const swing = (C.swing && !strong && Math.abs((bp % 1) - 0.5) < 0.01) ? C.swing * beat * 0.5 : 0;
+        const ts = t0 + bp * beat + swing;
+        if (!rest && ts < t1 - 0.01) {
+            dur = Math.min(dur, (t1 - ts) / beat + 0.001);
+            const ef = energyFactorAt(profile, ts);
+            const arc = 0.9 + 0.12 * Math.sin(Math.PI * Math.min(1, (pos + bp / 4) / 4));      // дуга фразы: нарастание и спад
+            let vf = ((strong ? 0.95 : 0.78) + pos * 0.03 + (C.rnd() * 0.08 - 0.04)) * arc;
+            if (C.rnd() < (profile.accentProbability || 0) * (strong ? 1.6 : 1)) vf *= 1.25;
+            if (g === 'B' && occ >= 2) vf *= 1.06;
+            vf *= ef * ((profile.__emphasis && profile.__emphasis.melody) || 1);
+            out.push({ note: PR_PITCHES[S[d]], duration: dur, durationSeconds: dur * beat * (profile.sustainStretch || 1) * (0.8 + ef * 0.4),
+                       startTimeOffsetSeconds: ts, instrument: profile.instruments.melody, bpm, layer: 'melody',
+                       octave: profile.melodyOctave, echo: profile.echoMode, volumeFactor: Math.min(1.4, vf) });
+            emit.push(S[d]);
+        }
+        bp += m.dur[i];
+    }
+    /* контрмелодия: движется в противоположную сторону на слабых долях, ниже основной линии */
+    if (emit.length > 1 && (g === 'B' || g === 'C' || (g === 'A' && occ >= 2 && pos >= 2))) {
+        const dir = Math.sign(emit[emit.length - 1] - emit[0]) || 1, cc = chord.notes.map(idxOf).filter(i => i >= 0 && i <= 24);
+        let tgt = Math.round(emit.reduce((a, b) => a + b, 0) / emit.length) - 8;
+        [1.5, 3.5].forEach((bpp, k) => {
+            tgt -= dir * (k ? 2 : 0);
+            const pick = cc.reduce((a, i) => Math.abs(i - tgt) < Math.abs(a - tgt) ? i : a, cc[0]), ef = energyFactorAt(profile, t0 + bpp * beat);
+            out.push({ note: PR_PITCHES[pick], duration: 0.5, durationSeconds: beat * 0.48, startTimeOffsetSeconds: t0 + bpp * beat,
+                       instrument: profile.instruments.decoration || profile.instruments.harmony || profile.instruments.melody, bpm, layer: 'decoration',
+                       octave: profile.melodyOctave, echo: profile.echoMode, volumeFactor: 0.5 * ef });
+        });
+    }
+    C.last = d; C.bar++;
+}
+
+/* «Мастер-проход» после создания трека: убираем дубли, выравниваем громкость */
+function masterPass(notes) {
+    const seen = new Set();
+    for (let i = notes.length - 1; i >= 0; i--) {
+        const n = notes[i], k = `${n.layer}|${n.note}|${n.instrument}|${n.startTimeOffsetSeconds.toFixed(3)}`;
+        if (seen.has(k)) notes.splice(i, 1); else seen.add(k);
+        n.volumeFactor = Math.max(n.layer === 'melody' ? 0.55 : 0.2, Math.min(1.5, n.volumeFactor || 1));
+    }
+}
+
+/* ---------- Улучшить мелодию: ритм, лад, скачки, аккорды, фразы, динамика, подходы ---------- */
+function aiImproveMelody() {
+    const base = melody.filter(n => (n.layer === 'melody' || !n.layer) && !n.aiLayer);
+    if (base.length < 3) { setStatus('Сначала сыграйте или запишите мелодию (минимум 3 ноты).'); return; }
+    pushHistory();
+    IMPROVE_BACKUP = JSON.parse(JSON.stringify(melody));
+    base.sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+    const key = detectKey(base); adoptMood(base);
+    const profile = prepareAiProfile(), bpm = base[0].bpm || profile.bpmBase, beat = 60 / bpm;
+    const st = { rhythm: 0, merged: 0, off: 0, leaps: 0, strong: 0, cad: 0, orn: 0 };
+    const chromatic = currentStyles.some(k => ['crazy', 'scary', 'jazz', 'mysterious'].includes(k)), sc = new Set(key.scale);
+    const ix = n => PR_PITCHES.indexOf(n.note), t0 = base[0].startTimeOffsetSeconds;
+    /* 1. ритм: сетка 1/8 или 1/16 по плотности, длительности по сетке, без наложений и дублей */
+    const iois = []; for (let i = 0; i < base.length - 1; i++) iois.push(base[i + 1].startTimeOffsetSeconds - base[i].startTimeOffsetSeconds);
+    const medIoi = iois.length ? iois.slice().sort((a, b) => a - b)[iois.length >> 1] : beat, grid = medIoi < beat * 0.4 ? beat / 4 : beat / 2;
+    base.forEach(n => {
+        const rel = (n.startTimeOffsetSeconds - t0) / grid, r = Math.round(rel);
+        if (Math.abs(rel - r) > 0.02 && Math.abs(rel - r) <= 0.45) { n.startTimeOffsetSeconds = t0 + r * grid; st.rhythm++; }
+        const dd = Math.max(grid, Math.round(n.durationSeconds / grid) * grid);
+        if (Math.abs(dd - n.durationSeconds) > 0.02) { n.durationSeconds = dd; n.duration = dd / beat; }
+    });
+    for (let i = base.length - 2; i >= 0; i--) {
+        const a = base[i], b = base[i + 1];
+        if (a.note === b.note && Math.abs(a.startTimeOffsetSeconds - b.startTimeOffsetSeconds) < 0.01) { melody.splice(melody.indexOf(b), 1); base.splice(i + 1, 1); st.merged++; continue; }
+        const gap = b.startTimeOffsetSeconds - a.startTimeOffsetSeconds;
+        if (gap > 0.01 && a.durationSeconds > gap + 0.01) { a.durationSeconds = gap; a.duration = gap / beat; }
+    }
+    /* 2. лад: ноты вне тональности притягиваются к ближайшей ступени (проходящую хроматику оставляем) */
+    if (key.fit > 0.75 && !chromatic) base.forEach((n, i) => {
+        if (sc.has(pcOf(n.note))) return;
+        const prev = base[i - 1], next = base[i + 1], a = ix(n);
+        if (prev && next) { const pa = ix(prev), na = ix(next); if (((pa < a && a < na) || (pa > a && a > na)) && Math.abs(a - pa) <= 2 && Math.abs(na - a) <= 2) return; }
+        let best = null;
+        for (const dd of [-1, 1, -2, 2]) { const c = a + dd; if (c >= 0 && c <= 24 && sc.has(c % 12)) { if (best == null || (Math.abs(dd) === Math.abs(best - a) && prev && Math.abs(c - ix(prev)) < Math.abs(best - ix(prev)))) best = c; if (Math.abs(dd) === 2 || best != null && Math.abs(best - a) === 1 && dd === 1) break; } }
+        if (best != null) { n.note = PR_PITCHES[best]; st.off++; }
+    });
+    /* 3. скачки больше септимы смягчаются сдвигом на октаву */
+    for (let i = 1; i < base.length; i++) {
+        const a = ix(base[i]), p = ix(base[i - 1]), dd = a - p;
+        if (Math.abs(dd) >= 10) { const c = a - Math.sign(dd) * 12; if (c >= 0 && c <= 24 && Math.abs(c - p) < Math.abs(dd)) { base[i].note = PR_PITCHES[c]; st.leaps++; } }
+    }
+    /* 4. аккорды по функциям; сильные доли — тоны аккорда */
+    const end = Math.max(...base.map(n => n.startTimeOffsetSeconds + n.durationSeconds)), nBars = Math.max(1, Math.ceil((end - t0) / (4 * beat) - 0.05));
+    const barW = Array.from({ length: nBars }, () => new Array(12).fill(0));
+    base.forEach(n => { const p = pcOf(n.note), b = Math.min(nBars - 1, Math.floor((n.startTimeOffsetSeconds - t0) / (4 * beat))); if (p >= 0) barW[b][p] += n.durationSeconds; });
+    const plan = planChords(key, barW, nBars, true, true), barOf = n => Math.min(nBars - 1, Math.floor((n.startTimeOffsetSeconds - t0) / (4 * beat)));
+    base.forEach(n => {
+        const pb = ((n.startTimeOffsetSeconds - t0) / beat) % 4, ch = plan[barOf(n)];
+        if ((pb < 0.02 || Math.abs(pb - 2) < 0.02) && n.durationSeconds >= beat * 0.9 && !ch.pcs.has(pcOf(n.note))) {
+            const a = ix(n); for (const dd of [-1, 1, -2, 2]) { const c = a + dd; if (c >= 0 && c <= 24 && ch.pcs.has(c % 12)) { n.note = PR_PITCHES[c]; st.strong++; break; } }
+        }
+    });
+    /* 5. фразы заканчиваются опорной нотой (последняя — тоника) и звучат дольше */
+    const phrases = []; let cur = [base[0]];
+    for (let i = 1; i < base.length; i++) {
+        const prevEnd = base[i - 1].startTimeOffsetSeconds + base[i - 1].durationSeconds;
+        if (base[i].startTimeOffsetSeconds - prevEnd >= beat * 0.9 || base[i].startTimeOffsetSeconds - cur[0].startTimeOffsetSeconds >= 16 * beat) { phrases.push(cur); cur = []; }
+        cur.push(base[i]);
+    }
+    phrases.push(cur);
+    phrases.forEach((ph, pi) => {
+        const ln = ph[ph.length - 1], isLast = pi === phrases.length - 1, ch = plan[barOf(ln)], a = ix(ln);
+        const want = isLast ? new Set([key.tonic]) : ch.pcs;
+        if (!want.has(pcOf(ln.note))) { for (const dd of [-1, 1, -2, 2, -3, 3]) { const c = a + dd; if (c >= 0 && c <= 24 && want.has(c % 12)) { ln.note = PR_PITCHES[c]; st.cad++; break; } } }
+        const nextStart = phrases[pi + 1] ? phrases[pi + 1][0].startTimeOffsetSeconds : Infinity, avail = nextStart - ln.startTimeOffsetSeconds - 0.02;
+        const wantDur = isLast ? Math.max(ln.durationSeconds, beat * 2) : Math.min(Math.max(ln.durationSeconds, beat), avail);
+        if (wantDur > ln.durationSeconds + 0.02) { ln.durationSeconds = wantDur; ln.duration = wantDur / beat; }
+    });
+    /* 6. динамика: дуга фразы, акценты на сильных долях, мягкое окончание; артикуляция по настроению */
+    const art = Math.max(0.75, Math.min(1.15, profile.sustainStretch || 1));
+    phrases.forEach((ph, pi) => ph.forEach((n, i) => {
+        const x = ph.length > 1 ? i / (ph.length - 1) : 0.5, pb = ((n.startTimeOffsetSeconds - t0) / beat) % 4;
+        let v = 0.72 + 0.28 * Math.sin(Math.PI * x) + ((pb < 0.02 || Math.abs(pb - 2) < 0.02) ? 0.08 : 0);
+        if (i === ph.length - 1 && pi !== phrases.length - 1) v *= 0.9;
+        v *= 0.85 + 0.3 * energyFactorAt(profile, n.startTimeOffsetSeconds);
+        n.volumeFactor = Math.max(0.45, Math.min(1.25, 0.5 * (n.volumeFactor || 1) + 0.5 * v));
+        if (art !== 1) n.durationSeconds = Math.max(grid * 0.5, n.durationSeconds * (art > 1 ? 1 : art));
+    }));
+    /* 7. подходы: на долгих нотах перед большим скачком — ступень лада к следующей ноте */
+    const adds = [];
+    base.forEach((n, i) => {
+        const nx = base[i + 1]; if (!nx || n.durationSeconds < beat * 1.9) return;
+        const a = ix(n), b = ix(nx); if (Math.abs(b - a) < 3) return;
+        const dirN = Math.sign(b - a); let c = b - dirN; while (c >= 0 && c <= 24 && !sc.has(c % 12)) c -= dirN;
+        if (c < 0 || c > 24 || c === a) return;
+        const L = Math.max(grid, beat / 2); n.durationSeconds -= L; n.duration = n.durationSeconds / beat;
+        adds.push({ ...n, id: undefined, note: PR_PITCHES[c], startTimeOffsetSeconds: n.startTimeOffsetSeconds + n.durationSeconds, durationSeconds: L, duration: L / beat,
+                    volumeFactor: (n.volumeFactor || 1) * 0.85, userPlayed: false, origin: 'ai', improvedAdd: true });
+        st.orn++;
+    });
+    melody = melody.concat(adds);
+    base.forEach(n => { n.aiTouched = true; });
+    /* аккомпанемент, который уже есть, перестраивается под улучшенную мелодию */
+    const had = ['harmony', 'bass', 'drums'].filter(l => melody.some(n => n.aiLayer === l));
+    if (had.length) {
+        melody = melody.filter(n => !had.includes(n.aiLayer));
+        const prof = prepareAiProfile(), out = []; if (had.includes('drums')) prof.useDrums = true;
+        addHarmonySupportUnderUserNotes(base.concat(adds), prof, out, had);
+        out.forEach(n => { n.moodColor = prof.color; n.aiLayer = n.layer; n.origin = 'ai'; });
+        melody = melody.concat(out);
+    }
+    melody.sort((a, b) => a.startTimeOffsetSeconds - b.startTimeOffsetSeconds);
+    markDirty(); renderAnalysis();
+    $('aiUndoImprove').disabled = false;
+    const total = st.rhythm + st.merged + st.off + st.leaps + st.strong + st.cad + st.orn;
+    aiThoughts([`Слушаю вашу мелодию: ${keyName(key)}, ${bpm} BPM. ${moodNote(profile)}`,
+        `Ритм: выровнял нот по сетке ${grid >= beat / 2 - 0.001 ? '1/8' : '1/16'}: ${st.rhythm}${st.merged ? `, убрал дублей: ${st.merged}` : ''}.`,
+        `Лад: исправил нот вне тональности: ${st.off}${chromatic ? ' (хроматику оставил: так просит настроение)' : ''}, смягчил скачков: ${st.leaps}.`,
+        `Гармония и фразы: подогнал нот под аккорды: ${st.strong}, завершил фраз опорной нотой: ${st.cad} (последняя — на тонике).`,
+        `Динамика: расставил дугу фразы и акценты${st.orn ? `, добавил подходов к следующей ноте: ${st.orn}` : ''}.`,
+        total ? 'Готово. Ваша идея сохранена. Не понравилось — «Вернуть мою мелодию».' : 'Мелодия была чистой — почти не менял, добавил динамику. «Вернуть мою мелодию» вернёт всё как было.']);
+}
+function aiUndoImprove() {
+    if (!IMPROVE_BACKUP) return;
+    melody = IMPROVE_BACKUP; IMPROVE_BACKUP = null; $('aiUndoImprove').disabled = true;
+    markDirty(); renderAnalysis(); setStatus('Вернул вашу мелодию такой, какой она была до улучшения.');
 }
 
 window.onload = init;
